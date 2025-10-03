@@ -1,26 +1,53 @@
+/* Tailwind v4: подключение одной строкой */
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* Вся кастомная тема — здесь */
+@theme {
+  /* палитра "military" */
+  --color-camo-950: #07100b;
+  --color-camo-900: #0b1b12;
+  --color-camo-800: #102319;
+  --color-camo-700: #143021;
+  --color-camo-600: #1b3c2a;
+  --color-camo-500: #254d38;
+  --color-camo-400: #2f6047;
+  --color-camo-300: #3c7a5a;
+
+  /* шрифт и тени как токены */
+  --font-ui: Inter, system-ui, "Segoe UI", Roboto, Arial, "Noto Sans",
+    "Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --shadow-soft: 0 6px 24px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.03);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* базовые стили */
+:root { color-scheme: dark; }
+html, body { height: 100%; }
+body { @apply bg-camo-900 text-neutral-200 antialiased font-[var(--font-ui)]; }
+
+/* тонкая «техническая» сетка фона */
+.bg-grid {
+  background-image: linear-gradient(to right, rgba(255,255,255,.05) 1px, transparent 1px);
+  background-size: 64px 100%;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+/* карточки */
+.card { @apply rounded-2xl p-4 border border-white/5 shadow-[var(--shadow-soft)] bg-camo-800/80; }
+.card-tight { @apply rounded-xl p-3 border border-white/5 shadow-[var(--shadow-soft)] bg-camo-800/80; }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* утилиты */
+.h1 { @apply text-3xl md:text-4xl font-semibold tracking-tight; }
+.muted { @apply text-sm text-neutral-400; }
+.num { font-feature-settings:"tnum"; }
+/* лёгкая анимация появления диаграммы и легенды */
+@keyframes pop {
+  from { transform: scale(.96); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
 }
+@keyframes rise {
+  from { transform: translateY(6px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+.donut-pop { animation: pop .4s cubic-bezier(.2,.8,.2,1) both; }
+.legend-fade { animation: rise .5s ease .15s both; }
