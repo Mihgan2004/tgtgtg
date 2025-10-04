@@ -2,7 +2,7 @@ import Donut, { type Slice } from '@/components/Donut';
 import TotalsList from '@/components/TotalsList';
 import {
   INDICATOR_LABEL, type Indicator,
-  getFieldDistribution, getTotalsCommon, ALLOWED_USER_IDS,
+  getFieldDistribution, getTotalsCommon,
 } from '@/lib/queries';
 
 export const revalidate = 0;
@@ -19,10 +19,6 @@ export default async function StatsById({
   const all  = get('all') === '1';
   const from = (get('from')?.trim() || null);
   const to   = (get('to')?.trim()   || null);
-
-  if (!(ALLOWED_USER_IDS as readonly string[]).includes(id)) {
-    return <div className="card">Этот пользователь не входит в список разрешённых.</div>;
-  }
 
   const dists = await Promise.all(MAIN_5.map(f => getFieldDistribution(f, { userId:id }, from, to, all, 6)));
   const donuts: Slice[][] = dists.map(rows=>{

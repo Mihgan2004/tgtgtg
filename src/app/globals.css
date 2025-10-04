@@ -3,51 +3,280 @@
 
 /* Вся кастомная тема — здесь */
 @theme {
-  /* палитра "military" */
-  --color-camo-950: #07100b;
-  --color-camo-900: #0b1b12;
-  --color-camo-800: #102319;
-  --color-camo-700: #143021;
-  --color-camo-600: #1b3c2a;
-  --color-camo-500: #254d38;
-  --color-camo-400: #2f6047;
-  --color-camo-300: #3c7a5a;
+  /* Обновлённая палитра "military" - более живая и контрастная */
+  --color-camo-950: #050a08;
+  --color-camo-900: #0a1510;
+  --color-camo-800: #0f201a;
+  --color-camo-700: #163028;
+  --color-camo-600: #1e4035;
+  --color-camo-500: #2a5545;
+  --color-camo-400: #3a7060;
+  --color-camo-300: #4a8a75;
+
+  /* Акцентные цвета */
+  --color-accent-primary: #10b981;    /* emerald-500 */
+  --color-accent-secondary: #3b82f6;  /* blue-500 */
+  --color-accent-warning: #f59e0b;    /* amber-500 */
+  --color-accent-danger: #ef4444;     /* red-500 */
 
   /* шрифт и тени как токены */
   --font-ui: Inter, system-ui, "Segoe UI", Roboto, Arial, "Noto Sans",
     "Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  --shadow-soft: 0 6px 24px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.03);
+  /* Улучшенные тени с большей глубиной */
+  --shadow-soft: 0 8px 32px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.05);
+  --shadow-glow: 0 0 24px rgba(16, 185, 129, 0.3);
+  --shadow-glow-strong: 0 0 32px rgba(16, 185, 129, 0.5);
+}
+
+/* КРИТИЧНЫЕ ФИКСЫ для мобильных устройств */
+* {
+  box-sizing: border-box;
+}
+
+html {
+  overflow-x: hidden;
+  width: 100%;
+  height: 100%;
+}
+
+body {
+  overflow-x: hidden;
+  width: 100%;
+  min-height: 100%;
+  position: relative;
 }
 
 /* базовые стили */
-:root { color-scheme: dark; }
-html, body { height: 100%; }
-body { @apply bg-camo-900 text-neutral-200 antialiased font-[var(--font-ui)]; }
-
-/* тонкая «техническая» сетка фона */
-.bg-grid {
-  background-image: linear-gradient(to right, rgba(255,255,255,.05) 1px, transparent 1px);
-  background-size: 64px 100%;
+:root { 
+  color-scheme: dark;
 }
 
-/* карточки */
-.card { @apply rounded-2xl p-4 border border-white/5 shadow-[var(--shadow-soft)] bg-camo-800/80; }
-.card-tight { @apply rounded-xl p-3 border border-white/5 shadow-[var(--shadow-soft)] bg-camo-800/80; }
+body { 
+  @apply bg-camo-900 text-neutral-200 antialiased font-[var(--font-ui)];
+  margin: 0;
+  padding: 0;
+}
+
+/* тонкая «техническая» сетка фона - УЛУЧШЕНА с градиентом */
+.bg-grid {
+  background-color: #0a1510;
+  background-image: 
+    radial-gradient(circle at 20% 50%, rgba(16, 185, 129, 0.03) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(58, 112, 96, 0.04) 0%, transparent 50%),
+    linear-gradient(to right, rgba(255,255,255,.025) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255,255,255,.02) 1px, transparent 1px);
+  background-size: 
+    100% 100%,
+    100% 100%,
+    40px 40px,
+    40px 40px;
+  background-position: center center;
+}
+
+/* карточки - добавлена защита от overflow + улучшенный дизайн */
+.card { 
+  @apply rounded-2xl p-4 border border-white/10 shadow-[var(--shadow-soft)] bg-camo-800/90;
+  overflow: hidden;
+  width: 100%;
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+}
+
+.card:hover {
+  border-color: rgba(16, 185, 129, 0.3);
+  box-shadow: 0 8px 32px rgba(0,0,0,.5), 0 0 20px rgba(16, 185, 129, 0.1);
+}
+
+.card-tight { 
+  @apply rounded-xl p-3 border border-white/10 shadow-[var(--shadow-soft)] bg-camo-800/90;
+  overflow: hidden;
+  width: 100%;
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+}
+
+.card-tight:hover {
+  border-color: rgba(16, 185, 129, 0.2);
+}
 
 /* утилиты */
-.h1 { @apply text-3xl md:text-4xl font-semibold tracking-tight; }
-.muted { @apply text-sm text-neutral-400; }
-.num { font-feature-settings:"tnum"; }
-/* лёгкая анимация появления диаграммы и легенды */
+.h1 { 
+  @apply text-2xl md:text-3xl lg:text-4xl font-semibold tracking-tight;
+  word-break: break-word;
+}
+
+.muted { 
+  @apply text-sm text-neutral-400;
+}
+
+.num { 
+  font-feature-settings: "tnum";
+  font-variant-numeric: tabular-nums;
+}
+
+/* Анимации - улучшенные */
 @keyframes pop {
-  from { transform: scale(.96); opacity: 0; }
-  to   { transform: scale(1); opacity: 1; }
+  from { 
+    transform: scale(.92) translateY(8px);
+    opacity: 0;
+  }
+  to { 
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
 }
+
 @keyframes rise {
-  from { transform: translateY(6px); opacity: 0; }
-  to   { transform: translateY(0); opacity: 1; }
+  from { 
+    transform: translateY(12px);
+    opacity: 0;
+  }
+  to { 
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
-.donut-pop { animation: pop .4s cubic-bezier(.2,.8,.2,1) both; }
-.legend-fade { animation: rise .5s ease .15s both; }
+
+@keyframes glow-pulse {
+  0%, 100% { 
+    box-shadow: 0 0 20px rgba(47, 96, 71, 0.3);
+  }
+  50% { 
+    box-shadow: 0 0 30px rgba(47, 96, 71, 0.5);
+  }
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.donut-pop { 
+  animation: pop .5s cubic-bezier(.2,.8,.2,1) both;
+}
+
+.legend-fade { 
+  animation: rise .6s ease .2s both;
+}
+
+.glow-active {
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+.slide-in {
+  animation: slide-in .4s ease-out both;
+}
+
+/* Улучшенные кнопки */
+button, a[class*="px-"] {
+  transition: all 0.2s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:active, a[class*="px-"]:active {
+  transform: scale(0.96);
+}
+
+/* Инпуты - улучшенный мобильный вид */
+input[type="date"],
+input[type="text"],
+input[type="checkbox"] {
+  touch-action: manipulation;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+input[type="date"],
+input[type="text"] {
+  @apply rounded-lg bg-camo-700/70 border border-white/10 text-neutral-200;
+  padding: 0.5rem 0.75rem;
+  font-size: 14px;
+  min-height: 40px;
+  width: 100%;
+}
+
+input[type="date"]:focus,
+input[type="text"]:focus {
+  @apply outline-none border-camo-400;
+  box-shadow: 0 0 0 3px rgba(47, 96, 71, 0.2);
+}
+
+input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255,255,255,0.2);
+  border-radius: 4px;
+  background: rgba(16, 35, 25, 0.5);
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+}
+
+input[type="checkbox"]:checked {
+  background: #2f6047;
+  border-color: #2f6047;
+}
+
+input[type="checkbox"]:checked::after {
+  content: "✓";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+/* Адаптивная сетка */
+@media (max-width: 640px) {
+  .card, .card-tight {
+    padding: 1rem;
+  }
+  
+  .h1 {
+    font-size: 1.5rem;
+  }
+}
+
+/* Скрытие overflow для предотвращения горизонтального скролла */
+#__next, main {
+  overflow-x: hidden;
+  width: 100%;
+}
+
+/* Кастомный скроллбар */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(16, 35, 25, 0.3);
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(47, 96, 71, 0.5);
+  border-radius: 3px;
+  transition: background 0.2s;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(47, 96, 71, 0.7);
+}
+
+/* Для Firefox */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(47, 96, 71, 0.5) rgba(16, 35, 25, 0.3);
+}
