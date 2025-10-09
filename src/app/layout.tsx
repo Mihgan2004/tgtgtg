@@ -1,9 +1,10 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import PinLock from '@/components/PinLock'
 
 export const metadata: Metadata = {
-  title: 'Miniapps · Stats',
-  description: 'Compact ops dashboard',
+  title: 'Ops Dashboard · Аналитика',
+  description: 'Система аналитики отчётов',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -13,23 +14,28 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
       </head>
       <body>
-        <div className="min-h-screen w-full overflow-x-hidden bg-grid">
-          {/* Фиксированный header с правильными отступами */}
-          <header className="sticky top-0 z-20 backdrop-blur-md bg-camo-900/80 border-b border-white/10 shadow-lg">
-            <div className="w-full max-w-6xl mx-auto px-3 sm:px-4 py-3">
-              <div className="text-center">
-                <div className="text-lg sm:text-xl font-semibold tracking-wide bg-gradient-to-r from-camo-300 to-emerald-400 bg-clip-text text-transparent">
-                  mihganus
+        <PinLock>
+          <div className="min-h-screen w-full overflow-x-hidden bg-grid">
+            {/* Фиксированный header */}
+            <header className="sticky top-0 z-20 backdrop-blur-md bg-camo-900/80 border-b border-white/10 shadow-lg">
+              <div className="w-full max-w-6xl mx-auto px-3 sm:px-4 py-3">
+                <div className="text-center">
+                  <div className="text-lg sm:text-xl font-bold bg-gradient-to-r from-emerald-400 to-emerald-300 bg-clip-text text-transparent">
+                    OPS DASHBOARD
+                  </div>
+                  <div className="text-[10px] text-neutral-500 uppercase tracking-widest mt-0.5">
+                    Система аналитики
+                  </div>
                 </div>
               </div>
-            </div>
-          </header>
-          
-          {/* Main контент с безопасными отступами */}
-          <main className="w-full max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
-            {children}
-          </main>
-        </div>
+            </header>
+            
+            {/* Main контент */}
+            <main className="w-full max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
+              {children}
+            </main>
+          </div>
+        </PinLock>
       </body>
     </html>
   )

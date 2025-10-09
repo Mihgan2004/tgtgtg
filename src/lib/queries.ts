@@ -1,289 +1,344 @@
 // src/lib/queries.ts
-import 'server-only';
-import { q } from './db';
+import { Pool } from 'pg';
 
-/** 11 шагов (основные и их подкатегории) */
-export const INDICATORS = [
-  'b_part_main','b_part_sub1','b_part_sub2',
-  'dopv_main','dopv_sub',
-  'vv_main','vv_sub',
-  'target_main','target_sub',
-  'result_main','result_sub',
-] as const;
-export type Indicator = typeof INDICATORS[number];
+/* ===================== INIT ===================== */
 
-export const INDICATOR_LABEL: Record<Indicator, string> = {
-  b_part_main:  'B-часть (основная)',
-  b_part_sub1:  'B-часть · подкатегория 1',
-  b_part_sub2:  'B-часть · подкатегория 2',
-  dopv_main:    'Доп.в (основная)',
-  dopv_sub:     'Доп.в · подкатегория',
-  vv_main:      'ВВ (основная)',
-  vv_sub:       'ВВ · подкатегория',
-  target_main:  'Цель (основная)',
-  target_sub:   'Цель · подкатегория',
-  result_main:  'Результат (основной)',
-  result_sub:   'Результат · подкатегория',
-};
-
-/* соответствие «индикатор → колонка в reports» */
-const FIELD_COL: Record<Indicator, string> = {
-  b_part_main: 'b_part_main',
-  b_part_sub1: 'b_part_sub1',
-  b_part_sub2: 'b_part_sub2',
-  dopv_main:   'dopv_main',
-  dopv_sub:    'dopv_sub',
-  vv_main:     'vv_main',
-  vv_sub:      'vv_sub',
-  target_main: 'target_main',
-  target_sub:  'target_sub',
-  result_main: 'result_main',
-  result_sub:  'result_sub',
-};
-
-/* ===== Общие хелперы для WHERE ===== */
-
-type Scope = { userId?: string | null; chatId?: string | null; idCode?: string | null };
-
-function buildBoundsCTE() {
-  return `
-    bounds AS (
-      SELECT
-        CASE WHEN $5::bool THEN NULL ELSE $3::timestamptz END AS dt_from,
-        CASE WHEN $5::bool THEN NULL ELSE $4::timestamptz END AS dt_to
-    )`;
+const DATABASE_URL = process.env.DATABASE_URL;
+if (!DATABASE_URL) {
+  throw new Error('ENV DATABASE_URL is required');
 }
 
-function buildFilteredR() {
-  // $1 userId, $2 chatId, $3 from, $4 to, $5 allTime, $6 idCode
-  return `
-    R AS (
-      SELECT r.*
-      FROM reports r, bounds b
-      WHERE ($1::bigint IS NULL OR r.user_id = $1)
-        AND ($2::bigint IS NULL OR r.chat_id = $2)
-        AND (b.dt_from IS NULL OR r.created_at >= b.dt_from)
-        AND (b.dt_to   IS NULL OR r.created_at <  b.dt_to + INTERVAL '1 day')
-        AND ($6::text  IS NULL OR r.id_code = $6)
-    )`;
+export const pool = new Pool({
+  connectionString: DATABASE_URL,
+  // ssl: { rejectUnauthorized: false }, // включи при необходимости
+});
+
+/* ===================== TYPES ===================== */
+
+export type Indicator =
+  | 'id_code'
+  | 'number_n'
+  | 'type_choice'
+  | 'coords'
+  | 'freq'
+  | 'b_part_main'
+  | 'b_part_sub1'
+  | 'b_part_sub2'
+  | 'dopv_main'
+  | 'dopv_sub'
+  | 'vv_main'
+  | 'vv_sub'
+  | 'target_main'
+  | 'target_sub'
+  | 'result_main'
+  | 'result_sub'
+  | 'date_time';
+
+/* ===================== COMMON SQL CONSTS ===================== */
+
+export const CREATED_AT_COL = 'r.created_at';
+export const CREATED_DAY_EXPR =
+  `to_char(${CREATED_AT_COL} AT TIME ZONE 'UTC', 'YYYY-MM-DD')`;
+
+export function targetExpr(): string {
+  return `COALESCE(r.target_main,'') || '::' || COALESCE(r.target_sub,'')`;
+}
+export function resultExpr(): string {
+  return `COALESCE(r.result_main,'') || '::' || COALESCE(r.result_sub,'')`;
+}
+export function bPartExpr(): string {
+  return `COALESCE(r.b_part_main,'') || '::' || COALESCE(r.b_part_sub1,'') || '::' || COALESCE(r.b_part_sub2,'')`;
 }
 
-function packParams(scope: Scope, from?: string | null, to?: string | null, allTime = false): any[] {
-  return [
-    scope.userId ?? null,
-    scope.chatId ?? null,
-    from ?? null,
-    to ?? null,
-    !!allTime,
-    scope.idCode ?? null,
-  ];
+/* ===================== UTILS ===================== */
+
+// ⚠️ экспортируем q и НЕ используем generic у c.query — так уходит TS-ошибка QueryResultRow
+export async function q<T = any>(sql: string, params: any[] = []): Promise<T[]> {
+  const c = await pool.connect();
+  try {
+    const r = await c.query(sql, params);
+    return r.rows as T[];
+  } finally {
+    c.release();
+  }
 }
 
-/* ---------- A) Распределение (для донат-диаграмм) ---------- */
+function isIsoDate(s?: string) {
+  return !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
+}
 
-export type DistRow = { label: string; count: number; total: number };
+/** WHERE + params для таблицы reports r */
+function buildWhere(
+  scope?: Record<string, any>,
+  from?: string,
+  to?: string,
+  all?: boolean,
+): { whereSql: string; params: any[] } {
+  const where: string[] = [];
+  const params: any[] = [];
+  const push = (v: any) => {
+    params.push(v);
+    return params.length; // возвращаем индекс для $n
+  };
+
+  if (scope?.id_code) {
+    const i = push(String(scope.id_code));
+    where.push(`r.id_code = $${i}`);
+  }
+
+  if (!all) {
+    if (isIsoDate(from) && isIsoDate(to)) {
+      const i1 = push(from);
+      const i2 = push(to);
+      where.push(`${CREATED_AT_COL}::date BETWEEN $${i1}::date AND $${i2}::date`);
+    } else if (isIsoDate(from)) {
+      const i = push(from);
+      where.push(`${CREATED_AT_COL}::date = $${i}::date`);
+    } else if (isIsoDate(to)) {
+      const i = push(to);
+      where.push(`${CREATED_AT_COL}::date = $${i}::date`);
+    }
+  }
+
+  return { whereSql: where.length ? `WHERE ${where.join(' AND ')}` : '', params };
+}
+
+/* ===================== DISTRIBUTIONS ===================== */
+
+export async function getFieldDistributionExtended(
+  fieldExpr: string | Indicator,
+  scope?: Record<string, any>,
+  from?: string,
+  to?: string,
+  all?: boolean,
+  limit: number = 100,
+): Promise<Array<{ label: string; count: number }>> {
+  const expr = typeof fieldExpr === 'string' ? fieldExpr : `r.${fieldExpr}`;
+  const { whereSql, params } = buildWhere(scope, from, to, all);
+
+  const sql = `
+    SELECT ${expr} AS label, COUNT(*)::int AS count
+    FROM reports r
+    ${whereSql}
+    GROUP BY ${expr}
+    ORDER BY COUNT(*) DESC, ${expr} ASC
+    LIMIT ${Math.max(1, limit)}
+  `;
+  return q(sql, params);
+}
 
 export async function getFieldDistribution(
   field: Indicator,
-  scope: Scope = {},
-  from?: string | null,
-  to?: string | null,
-  allTime = false,
-  limit = 6
-): Promise<DistRow[]> {
-  const col = FIELD_COL[field];
-
-  const sql = `
-    WITH
-    ${buildBoundsCTE()},
-    ${buildFilteredR()},
-    base AS (
-      SELECT ${col} AS label
-      FROM R
-      WHERE NULLIF(${col}, '') IS NOT NULL
-    ),
-    totals AS (SELECT COUNT(*)::int AS total FROM base),
-    topn AS (
-      SELECT label, COUNT(*)::int AS count, (SELECT total FROM totals) AS total
-      FROM base
-      GROUP BY label
-      ORDER BY COUNT(*) DESC
-      LIMIT $7
-    )
-    SELECT * FROM topn
-  `;
-
-  return q<DistRow>(sql, [...packParams(scope, from, to, allTime), limit]);
+  scope?: Record<string, any>,
+  from?: string,
+  to?: string,
+  all?: boolean,
+  limit: number = 100,
+) {
+  return getFieldDistributionExtended(field, scope, from, to, all, limit);
 }
 
-/* ---------- B) Общий отчёт цифрами по всем полям ---------- */
+/* ===================== TOTALS / USERS ===================== */
 
-const TOTAL_KEYS = [
-  'id_code','date_time','number_n','type_choice','coords','freq',
-  'b_part_main','b_part_sub1','b_part_sub2',
-  'dopv_main','dopv_sub',
-  'vv_main','vv_sub',
-  'target_main','target_sub',
-  'result_main','result_sub',
-] as const;
+export async function getTotalReportsCount(
+  scope?: Record<string, any>,
+  from?: string,
+  to?: string,
+  all?: boolean,
+): Promise<number> {
+  const { whereSql, params } = buildWhere(scope, from, to, all);
+  const rows = await q<{ total: number }>(
+    `SELECT COUNT(*)::int AS total FROM reports r ${whereSql}`,
+    params,
+  );
+  return rows[0]?.total ?? 0;
+}
 
-export async function getTotalsCommon(
-  scope: Scope = {},
-  from?: string | null,
-  to?: string | null,
-  allTime = false
-): Promise<Record<string, number>> {
+/** id_code + username + count (учитывает фильтры) */
+export async function getAllowedUsersWithCounts(
+  from?: string,
+  to?: string,
+  all?: boolean,
+): Promise<Array<{ user_id: string; username: string | null; count: number }>> {
+  const { whereSql, params } = buildWhere(undefined, from, to, all);
   const sql = `
-    WITH
-    ${buildBoundsCTE()},
-    ${buildFilteredR()}
     SELECT
-      COUNT(*) FILTER (WHERE NULLIF(id_code,     '') IS NOT NULL)::int AS id_code,
-      COUNT(*) FILTER (WHERE NULLIF(date_time,   '') IS NOT NULL)::int AS date_time,
-      COUNT(*) FILTER (WHERE NULLIF(number_n,    '') IS NOT NULL)::int AS number_n,
-      COUNT(*) FILTER (WHERE NULLIF(type_choice, '') IS NOT NULL)::int AS type_choice,
-      COUNT(*) FILTER (WHERE NULLIF(coords,      '') IS NOT NULL)::int AS coords,
-      COUNT(*) FILTER (WHERE NULLIF(freq,        '') IS NOT NULL)::int AS freq,
-
-      COUNT(*) FILTER (WHERE NULLIF(b_part_main, '') IS NOT NULL)::int AS b_part_main,
-      COUNT(*) FILTER (WHERE NULLIF(b_part_sub1, '') IS NOT NULL)::int AS b_part_sub1,
-      COUNT(*) FILTER (WHERE NULLIF(b_part_sub2, '') IS NOT NULL)::int AS b_part_sub2,
-
-      COUNT(*) FILTER (WHERE NULLIF(dopv_main,   '') IS NOT NULL)::int AS dopv_main,
-      COUNT(*) FILTER (WHERE NULLIF(dopv_sub,    '') IS NOT NULL)::int AS dopv_sub,
-
-      COUNT(*) FILTER (WHERE NULLIF(vv_main,     '') IS NOT NULL)::int AS vv_main,
-      COUNT(*) FILTER (WHERE NULLIF(vv_sub,      '') IS NOT NULL)::int AS vv_sub,
-
-      COUNT(*) FILTER (WHERE NULLIF(target_main, '') IS NOT NULL)::int AS target_main,
-      COUNT(*) FILTER (WHERE NULLIF(target_sub,  '') IS NOT NULL)::int AS target_sub,
-
-      COUNT(*) FILTER (WHERE NULLIF(result_main, '') IS NOT NULL)::int AS result_main,
-      COUNT(*) FILTER (WHERE NULLIF(result_sub,  '') IS NOT NULL)::int AS result_sub
-    FROM R
+      r.id_code::text AS user_id,
+      u.username::text AS username,
+      COUNT(*)::int AS count
+    FROM reports r
+    LEFT JOIN tg_users u ON u.id = r.user_id
+    ${whereSql}
+    GROUP BY r.id_code, u.username
+    ORDER BY COUNT(*) DESC, r.id_code ASC
   `;
-
-  const rows = await q<Record<string, unknown>>(sql, packParams(scope, from, to, allTime));
-  const r = rows[0] ?? {};
-  const out: Record<string, number> = {};
-  for (const k of TOTAL_KEYS) out[k] = Number((r as any)[k] ?? 0);
-  return out;
+  return q(sql, params);
 }
 
-/* ---------- C) Список кодов доступа с количеством отчётов ---------- */
-
+/** только id_code + count */
 export async function getAllowedCodesWithCounts(
-  from?: string | null,
-  to?: string | null,
-  allTime = false,
-  limit = 200
-): Promise<{ id_code: string; reports: number }[]> {
+  from?: string,
+  to?: string,
+  all?: boolean,
+): Promise<Array<{ id_code: string; count: number }>> {
+  const { whereSql, params } = buildWhere(undefined, from, to, all);
   const sql = `
-    WITH
-    bounds AS (
-      SELECT
-        CASE WHEN $3::bool THEN NULL ELSE $1::timestamptz END AS dt_from,
-        CASE WHEN $3::bool THEN NULL ELSE $2::timestamptz END AS dt_to
-    ),
-    R AS (
-      SELECT r.*
-      FROM reports r, bounds b
-      WHERE NULLIF(r.id_code,'') IS NOT NULL
-        AND (b.dt_from IS NULL OR r.created_at >= b.dt_from)
-        AND (b.dt_to   IS NULL OR r.created_at <  b.dt_to + INTERVAL '1 day')
-    )
-    SELECT id_code, COUNT(*)::int AS reports
-    FROM R
-    GROUP BY id_code
-    ORDER BY reports DESC, id_code ASC
-    LIMIT $4
+    SELECT r.id_code::text AS id_code, COUNT(*)::int AS count
+    FROM reports r
+    ${whereSql}
+    GROUP BY r.id_code
+    ORDER BY COUNT(*) DESC, r.id_code ASC
   `;
-  return q<{ id_code: string; reports: number }>(sql, [from ?? null, to ?? null, !!allTime, limit]);
+  return q(sql, params);
 }
 
-/* ---------- D) (опц.) последние 5 суток по индикаторам ---------- */
+/** общий тотал (оставляем для совместимости; UI-блок «служебные метрики» вы выключили) */
+export async function getTotalsCommon(
+  scope?: Record<string, any>,
+  from?: string,
+  to?: string,
+  all?: boolean,
+): Promise<Array<{ label: string; value: number }>> {
+  const total = await getTotalReportsCount(scope, from, to, all);
+  return [
+    { label: 'Количество отчётов (равно количеству заполнений)', value: total },
+  ];
+}
 
-export type Point = { metric: Indicator; bucket: string; value: number };
+/* ===================== TIMELINE / TOPN ===================== */
 
-export async function getLast5Indicators(
-  scope: Scope = {},
-  to?: string | null
-): Promise<Point[]> {
-  const rows = await q<Point>(`
-    WITH
-    anchor AS (SELECT COALESCE($3::timestamptz, NOW()) AS t_end),
-    series AS (
-      SELECT DATE_TRUNC('day', t_end) - (i || ' day')::interval AS bucket
-      FROM anchor, GENERATE_SERIES(4, 0, -1) g(i)
-      ORDER BY bucket
-    )
-    /* 1 */ SELECT 'b_part_main'::text AS metric, s.bucket::timestamptz, COALESCE(COUNT(r.id),0)::float
-      FROM series s LEFT JOIN reports r
-        ON DATE_TRUNC('day', r.created_at)=s.bucket
-       AND NULLIF(r.b_part_main,'') IS NOT NULL
-       AND ($1::bigint IS NULL OR r.user_id=$1) AND ($2::bigint IS NULL OR r.chat_id=$2)
-      GROUP BY s.bucket
-    UNION ALL
-    /* 2 */ SELECT 'b_part_sub1', s.bucket, COALESCE(COUNT(r.id),0)::float FROM series s
-      LEFT JOIN reports r ON DATE_TRUNC('day', r.created_at)=s.bucket
-       AND NULLIF(r.b_part_sub1,'') IS NOT NULL
-       AND ($1::bigint IS NULL OR r.user_id=$1) AND ($2::bigint IS NULL OR r.chat_id=$2)
-      GROUP BY s.bucket
-    UNION ALL
-    /* 3 */ SELECT 'b_part_sub2', s.bucket, COALESCE(COUNT(r.id),0)::float FROM series s
-      LEFT JOIN reports r ON DATE_TRUNC('day', r.created_at)=s.bucket
-       AND NULLIF(r.b_part_sub2,'') IS NOT NULL
-       AND ($1::bigint IS NULL OR r.user_id=$1) AND ($2::bigint IS NULL OR r.chat_id=$2)
-      GROUP BY s.bucket
-    UNION ALL
-    /* 4 */ SELECT 'dopv_main', s.bucket, COALESCE(COUNT(r.id),0)::float FROM series s
-      LEFT JOIN reports r ON DATE_TRUNC('day', r.created_at)=s.bucket
-       AND NULLIF(r.dopv_main,'') IS NOT NULL
-       AND ($1::bigint IS NULL OR r.user_id=$1) AND ($2::bigint IS NULL OR r.chat_id=$2)
-      GROUP BY s.bucket
-    UNION ALL
-    /* 5 */ SELECT 'dopv_sub', s.bucket, COALESCE(COUNT(r.id),0)::float FROM series s
-      LEFT JOIN reports r ON DATE_TRUNC('day', r.created_at)=s.bucket
-       AND NULLIF(r.dopv_sub,'') IS NOT NULL
-       AND ($1::bigint IS NULL OR r.user_id=$1) AND ($2::bigint IS NULL OR r.chat_id=$2)
-      GROUP BY s.bucket
-    UNION ALL
-    /* 6 */ SELECT 'vv_main', s.bucket, COALESCE(COUNT(r.id),0)::float FROM series s
-      LEFT JOIN reports r ON DATE_TRUNC('day', r.created_at)=s.bucket
-       AND NULLIF(r.vv_main,'') IS NOT NULL
-       AND ($1::bigint IS NULL OR r.user_id=$1) AND ($2::bigint IS NULL OR r.chat_id=$2)
-      GROUP BY s.bucket
-    UNION ALL
-    /* 7 */ SELECT 'vv_sub', s.bucket, COALESCE(COUNT(r.id),0)::float FROM series s
-      LEFT JOIN reports r ON DATE_TRUNC('day', r.created_at)=s.bucket
-       AND NULLIF(r.vv_sub,'') IS NOT NULL
-       AND ($1::bigint IS NULL OR r.user_id=$1) AND ($2::bigint IS NULL OR r.chat_id=$2)
-      GROUP BY s.bucket
-    UNION ALL
-    /* 8 */ SELECT 'target_main', s.bucket, COALESCE(COUNT(r.id),0)::float FROM series s
-      LEFT JOIN reports r ON DATE_TRUNC('day', r.created_at)=s.bucket
-       AND NULLIF(r.target_main,'') IS NOT NULL
-       AND ($1::bigint IS NULL OR r.user_id=$1) AND ($2::bigint IS NULL OR r.chat_id=$2)
-      GROUP BY s.bucket
-    UNION ALL
-    /* 9 */ SELECT 'target_sub', s.bucket, COALESCE(COUNT(r.id),0)::float FROM series s
-      LEFT JOIN reports r ON DATE_TRUNC('day', r.created_at)=s.bucket
-       AND NULLIF(r.target_sub,'') IS NOT NULL
-       AND ($1::bigint IS NULL OR r.user_id=$1) AND ($2::bigint IS NULL OR r.chat_id=$2)
-      GROUP BY s.bucket
-    UNION ALL
-    /* 10 */ SELECT 'result_main', s.bucket, COALESCE(COUNT(r.id),0)::float FROM series s
-      LEFT JOIN reports r ON DATE_TRUNC('day', r.created_at)=s.bucket
-       AND NULLIF(r.result_main,'') IS NOT NULL
-       AND ($1::bigint IS NULL OR r.user_id=$1) AND ($2::bigint IS NULL OR r.chat_id=$2)
-      GROUP BY s.bucket
-    UNION ALL
-    /* 11 */ SELECT 'result_sub', s.bucket, COALESCE(COUNT(r.id),0)::float FROM series s
-      LEFT JOIN reports r ON DATE_TRUNC('day', r.created_at)=s.bucket
-       AND NULLIF(r.result_sub,'') IS NOT NULL
-       AND ($1::bigint IS NULL OR r.user_id=$1) AND ($2::bigint IS NULL OR r.chat_id=$2)
-      GROUP BY s.bucket
-    ORDER BY 1, 2
-  `, [scope.userId ?? null, scope.chatId ?? null, to ?? null]);
-  return rows;
+export async function getDailyTimeline(
+  scope?: Record<string, any>,
+  from?: string,
+  to?: string,
+  all?: boolean,
+): Promise<Array<{ day: string; count: number }>> {
+  const { whereSql, params } = buildWhere(scope, from, to, all);
+  const sql = `
+    SELECT ${CREATED_DAY_EXPR} AS day, COUNT(*)::int AS count
+    FROM reports r
+    ${whereSql}
+    GROUP BY ${CREATED_DAY_EXPR}
+    ORDER BY ${CREATED_DAY_EXPR} ASC
+  `;
+  return q(sql, params);
+}
+
+export async function getFieldTopN(
+  field: Indicator,
+  n: number,
+  scope?: Record<string, any>,
+  from?: string,
+  to?: string,
+  all?: boolean,
+) {
+  return getFieldDistributionExtended(field, scope, from, to, all, n);
+}
+
+/* ===================== DETAILED / PAGED (для export-detailed и таблиц) ===================== */
+
+export interface ReportRow {
+  id: number;
+  user_id: string | null;
+  id_code: string;
+  username: string | null;
+  chat_id: string | null;
+  date_time: string | null;
+  number_n: string | null;
+  type_choice: string | null;
+  coords: string | null;
+  freq: string | null;
+  b_part_main: string | null;
+  b_part_sub1: string | null;
+  b_part_sub2: string | null;
+  dopv_main: string | null;
+  dopv_sub: string | null;
+  vv_main: string | null;
+  vv_sub: string | null;
+  target_main: string | null;
+  target_sub: string | null;
+  result_main: string | null;
+  result_sub: string | null;
+  meta: any | null;
+  created_at: string; // ISO
+}
+
+export async function getReportsPaged(
+  page: number,
+  pageSize: number,
+  scope?: Record<string, any>,
+  from?: string,
+  to?: string,
+  all?: boolean,
+  order: 'asc' | 'desc' = 'desc',
+): Promise<{ rows: ReportRow[]; total: number }> {
+  const { whereSql, params } = buildWhere(scope, from, to, all);
+  const limit = Math.max(1, Math.min(1000, pageSize));
+  const offset = Math.max(0, (Math.max(1, page) - 1) * limit);
+
+  const dataSql = `
+    SELECT
+      r.id,
+      r.user_id::text,
+      r.id_code,
+      u.username,
+      r.chat_id::text,
+      r.date_time,
+      r.number_n,
+      r.type_choice,
+      r.coords,
+      r.freq,
+      r.b_part_main,
+      r.b_part_sub1,
+      r.b_part_sub2,
+      r.dopv_main,
+      r.dopv_sub,
+      r.vv_main,
+      r.vv_sub,
+      r.target_main,
+      r.target_sub,
+      r.result_main,
+      r.result_sub,
+      r.meta,
+      (r.created_at AT TIME ZONE 'UTC')::timestamptz AS created_at
+    FROM reports r
+    LEFT JOIN tg_users u ON u.id = r.user_id
+    ${whereSql}
+    ORDER BY ${CREATED_AT_COL} ${order.toUpperCase()}
+    LIMIT ${limit} OFFSET ${offset}
+  `;
+  const countSql = `SELECT COUNT(*)::int AS total FROM reports r ${whereSql}`;
+  const [rows, totalArr] = await Promise.all([
+    q<ReportRow>(dataSql, params),
+    q<{ total: number }>(countSql, params),
+  ]);
+  return { rows, total: totalArr[0]?.total ?? 0 };
+}
+
+/* ===================== DECODE HELPERS (B-PART) ===================== */
+
+const KG_MAINS = new Set<string>(['Тротиловая шашка 400 гр', 'ТМ-62']);
+
+/**
+ * Преобразует путь подкатегорий В-части в «человеческое» значение.
+ * Весовые позиции → «X кг», прочие → «1 шт.».
+ */
+export function decodeBPart(main: string, subPath?: string): string {
+  const m = (main || '').trim();
+  const s = (subPath || '').trim();
+
+  if (KG_MAINS.has(m)) {
+    const num = s.match(/[\d.,]+/)?.[0];
+    if (num) return `${num.replace(',', '.')} кг`;
+    return '1 кг';
+  }
+  return '1 шт.';
+}
+
+/* ===================== MISC ===================== */
+
+export async function getDistinctValues(field: Indicator): Promise<string[]> {
+  const sql = `SELECT DISTINCT ${'r.' + field} AS v FROM reports r WHERE r.${field} IS NOT NULL ORDER BY 1`;
+  const rows = await q<{ v: string }>(sql);
+  return rows.map(r => String(r.v));
 }
