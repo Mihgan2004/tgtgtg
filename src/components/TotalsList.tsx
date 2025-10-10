@@ -1,7 +1,8 @@
 // src/components/TotalsList.tsx
+// src/components/TotalsList.tsx
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 interface Item {
   label: string;
@@ -22,6 +23,8 @@ export default function TotalsList({ sections }: Props) {
     console.log('📊 Detailed steps received:', sections);
   }, [sections]);
 
+  const [allExpanded, setAllExpanded] = useState(false);
+
   const totalFields = sections.length;
   const totalLines = sections.reduce((acc, s) => acc + s.items.length, 0);
 
@@ -40,45 +43,40 @@ export default function TotalsList({ sections }: Props) {
         </div>
       </div>
 
-      <div className="space-y-8">
+      <div className="flex justify-end mb-4">
+        <button onClick={() => setAllExpanded(!allExpanded)} className="text-xs text-emerald-300 hover:underline">
+          {allExpanded ? 'Свернуть все' : 'Развернуть все'}
+        </button>
+      </div>
+
+      <div className="space-y-4">
         {sections.map((sec, sidx) => (
-          <div
+          <details
             key={sec.title}
-            style={{ animation: 'rise 0.35s ease both', animationDelay: `${Math.min(sidx * 0.04, 0.6)}s` }}
+            open={allExpanded}
+            className="border border-white/5 rounded-xl overflow-hidden"
           >
-            <div className="mb-3 flex items-center justify-between">
+            <summary className="flex justify-between px-4 py-3 bg-camo-900/40 cursor-pointer hover:bg-camo-800/50">
               <h3 className="text-sm font-semibold tracking-wide text-neutral-300 uppercase">
                 {sec.title}
               </h3>
-              <div className="text-xs text-neutral-500">{sec.items.length} поз.</div>
+              <div className="text-xs text-neutral-500">{sec.items.length} шт</div>
+            </summary>
+            <div className="p-3 grid grid-cols-2 md:grid-cols-3 gap-2">
+              {sec.items.map((it, iidx) => (
+                <div
+                  key={`${sec.title}__${it.label}__${iidx}`}
+                  className="chip hover:bg-white/[0.03] transition-colors"
+                  title={it.label}
+                >
+                  <span className="truncate mr-2">{it.label}</span>
+                  <span className="font-semibold font-mono text-emerald-300 num">
+                    {it.value.toLocaleString('ru-RU')} {sec.unit ?? 'шт'}
+                  </span>
+                </div>
+              ))}
             </div>
-
-            <div className="rounded-xl border border-white/5 bg-camo-900/40 p-3">
-              <ul className="divide-y divide-white/5">
-                {sec.items.map((it, iidx) => (
-                  <li
-                    key={`${sec.title}__${it.label}__${iidx}`}
-                    className="py-2 flex items-center justify-between hover:bg-white/[0.03] rounded-lg px-2 transition-colors"
-                    style={{ animation: 'rise 0.3s ease both', animationDelay: `${Math.min(iidx * 0.01, 0.4)}s` }}
-                  >
-                    <span className="text-sm text-neutral-300 truncate" title={it.label}>
-                      {it.label}
-                    </span>
-                    <span className="text-sm font-semibold text-emerald-300">
-                      {it.value.toLocaleString('ru-RU')} {sec.unit ?? 'шт'}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Пустой шаг — подсветка (для отладки) */}
-            {sec.items.length === 0 && (
-              <div className="mt-2 text-xs text-amber-300 bg-amber-900/20 border border-amber-500/30 rounded-lg p-2">
-                Нет данных для шага «{sec.title}».
-              </div>
-            )}
-          </div>
+          </details>
         ))}
       </div>
     </section>

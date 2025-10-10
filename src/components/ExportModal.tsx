@@ -47,6 +47,11 @@ export default function ExportModal({ open, onClose, initialFrom, initialTo }: P
       setIdCode('');
       setSelected(stepsAll.map((s) => s.key));
       setBusy(null);
+        if (!open) return;
+  const prev = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  return () => { document.body.style.overflow = prev; };
+
     }
   }, [open, initialFrom, initialTo]);
 

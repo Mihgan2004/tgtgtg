@@ -1,6 +1,11 @@
+// src/app/layout.tsx
 import type { Metadata } from 'next'
 import './globals.css'
 import PinLock from '@/components/PinLock'
+import { Inter, JetBrains_Mono } from 'next/font/google'
+
+const inter = Inter({ subsets: ['latin'], variable: '--font-ui' })
+const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono' })
 
 export const metadata: Metadata = {
   title: 'Ops Dashboard · Аналитика',
@@ -9,7 +14,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ru">
+    <html lang="ru" className={`${inter.variable} ${jetbrainsMono.variable}`}>
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
       </head>

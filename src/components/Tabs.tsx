@@ -1,33 +1,81 @@
+// src/components/Tabs.tsx
 'use client';
+
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { useCallback } from 'react';
 
 export default function Tabs() {
   const params = useSearchParams();
-  const tab = params.get('tab') ?? 'summary';
+  const currentTab = params.get('tab') ?? 'summary';
 
   const tabs = [
     { id: 'summary', label: 'Общий отчёт' },
-    { id: 'users', label: 'По пользователям' },
-  ];
+    { id: 'users',   label: 'По пользователям' },
+  ] as const;
+
+  // сохраняем остальные query-параметры, меняем только tab
+  const makeHref = (nextTab: string) => {
+    const qs = new URLSearchParams(Array.from(params.entries()));
+    qs.set('tab', nextTab);
+    return `/stats?${qs.toString()}`;
+  };
+
+  const openExport = useCallback(() => {
+    // триггерим модалку экспорта
+    window.dispatchEvent(new CustomEvent('open-export-modal'));
+  }, []);
 
   return (
-    <div className="flex gap-1 p-1 rounded-xl bg-transparent border border-white/10">
-      {tabs.map((t) => {
-        const active = tab === t.id;
-        return (
-          <Link
-            key={t.id}
-            href={`/stats?tab=${t.id}`}
-            className={`px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap
-              ${active
-                ? 'bg-emerald-600/85 text-white shadow-md'
-                : 'text-neutral-300 hover:text-white hover:bg-white/5'}`}
-          >
-            {t.label}
-          </Link>
-        );
-      })}
+    <div className="flex items-center gap-3">
+      {/* Капсула с табами */}
+      <nav
+        role="tablist"
+        className={[
+          'inline-flex w-fit items-center gap-1 p-1',
+          'rounded-xl border border-white/10 bg-white/[0.03]',
+          'shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-sm',
+        ].join(' ')}
+      >
+        {tabs.map((t) => {
+          const active = currentTab === t.id;
+          return (
+            <Link
+              key={t.id}
+              href={makeHref(t.id)}
+              role="tab"
+              aria-selected={active}
+              className={[
+                'inline-flex items-center justify-center leading-none',
+                'h-9 px-5 rounded-lg text-sm font-medium whitespace-nowrap transition-all duration-200',
+                'outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/40',
+                active
+                  ? 'bg-emerald-500/90 text-black shadow-md shadow-emerald-500/20'
+                  : 'text-white/75 hover:text-white hover:bg-white/10',
+              ].join(' ')}
+            >
+              {t.label}
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* Кнопка Экспорт */}
+      <button
+        type="button"
+        onClick={openExport}
+        className={[
+          'inline-flex items-center justify-center leading-none',
+          'h-9 px-4 rounded-lg text-sm font-medium',
+          'border border-white/12 bg-white/[0.02] text-white/85',
+          'hover:bg-white/10 hover:text-white transition-colors',
+          'outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/30',
+        ].join(' ')}
+        aria-label="Открыть экспорт"
+        title="Экспорт"
+      >
+        ⭳ Экспорт
+      </button>
     </div>
   );
 }

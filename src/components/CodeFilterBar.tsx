@@ -1,39 +1,137 @@
+// src/components/CodeFilterBar.tsx
 'use client';
 
+import { useCallback, useMemo, useState } from 'react';
+
 export default function CodeFilterBar({ initialUser }: { initialUser?: string }) {
+  const [open, setOpen] = useState(false);
+
+  const quickCodes = useMemo(() => ['100', '101', '102'], []);
+
+  const writeSearch = useCallback((user?: string) => {
+    const params = new URLSearchParams(window.location.search);
+    params.set('tab', 'users');
+    params.delete('user');
+    if (user && user.length > 0) params.set('user', user);
+    window.location.search = params.toString();
+  }, []);
+
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     const user = String(fd.get('user') || '').trim();
-
-    const params = new URLSearchParams(window.location.search);
-    params.set('tab', 'users');
-    params.delete('user');
-    if (user) params.set('user', user);
-    window.location.search = params.toString();
+    writeSearch(user || undefined);
   };
 
+  const isActiveQuick = (code: string) => (initialUser || '') === code;
+
   return (
-    <form onSubmit={onSubmit} className="rounded-2xl border border-white/10 p-3 bg-transparent">
-      <div className="grid grid-cols-12 gap-3 items-end">
-        <div className="col-span-12 sm:col-span-8">
-          <label className="text-xs text-white/60 mb-1 block">Код пользователя</label>
+    <section
+      className={[
+        'rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-sm',
+        'px-4 md:px-6 py-4 md:py-5',
+      ].join(' ')}
+      aria-label="Фильтр по коду"
+    >
+      {/* Шапка: текст + кнопка; ниже — тонкая линия */}
+      <div className="px-1">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] uppercase tracking-wide text-white/55">
+            Быстрый доступ:
+          </span>
+
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            className={[
+              'h-7 px-2 rounded-md text-[12px]',
+              'border border-white/10 bg-white/[0.02] hover:bg-white/[0.07] text-white/80',
+              'outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/30',
+            ].join(' ')}
+          >
+            {open ? 'Скрыть расширенный' : 'Расширенный фильтр'}
+          </button>
+        </div>
+
+        <div className="mt-2 h-px w-full bg-white/12" />
+      </div>
+
+      {/* Капсулы быстрых кодов */}
+      <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+        {quickCodes.map((code) => (
+          <button
+            key={code}
+            type="button"
+            onClick={() => writeSearch(code)}
+            className={[
+              'h-9 rounded-lg px-3 text-[13px]',
+              isActiveQuick(code)
+                ? 'bg-emerald-500/90 text-black border border-emerald-400'
+                : 'border border-white/10 bg-white/[0.02] hover:bg-white/[0.08] text-white/90',
+              'outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/30 transition font-medium',
+            ].join(' ')}
+            aria-pressed={isActiveQuick(code)}
+          >
+            {code}
+          </button>
+        ))}
+      </div>
+
+      {/* Расширенный фильтр: поле + действия */}
+      {open && (
+        <form
+          onSubmit={onSubmit}
+          className={[
+            'mt-5',
+            'grid items-center gap-3 md:gap-4',
+            'grid-cols-1 md:grid-cols-[1fr_auto]',
+          ].join(' ')}
+          aria-label="Расширенный фильтр по коду"
+        >
           <input
+            id="user"
             name="user"
             inputMode="numeric"
             pattern="[0-9]*"
-            placeholder="например, 260600"
+            placeholder="Фильтр по коду"
+            aria-label="Фильтр по коду"
             defaultValue={initialUser || ''}
-            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 outline-none focus:border-emerald-400"
+            className={[
+              'h-10 w-full min-w-[220px] rounded-lg px-3',
+              'bg-white/5 border border-white/12 outline-none',
+              'focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 transition',
+            ].join(' ')}
           />
-        </div>
-        <div className="col-span-12 sm:col-span-4 flex justify-end gap-2">
-          <button className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg px-4 py-2 font-medium">
-            ✓ Применить
-          </button>
-          <a href="/stats?tab=users" className="bg-white/5 hover:bg-white/10 rounded-lg px-3 py-2">↺ Сбросить</a>
-        </div>
-      </div>
-    </form>
+
+          <div className="flex items-center justify-end gap-2 self-center">
+            <button
+              type="submit"
+              className={[
+                'h-10 px-4 rounded-lg inline-flex items-center gap-2',
+                'bg-emerald-500/90 hover:bg-emerald-500 text-black font-semibold',
+                'shadow-md shadow-emerald-500/15 outline-none',
+                'focus-visible:ring-2 focus-visible:ring-emerald-400/40',
+                'whitespace-nowrap',
+              ].join(' ')}
+            >
+              ✓ Применить
+            </button>
+
+            <a
+              href="/stats?tab=users"
+              className={[
+                'h-10 px-4 rounded-lg inline-flex items-center gap-2',
+                'border border-white/12 bg-white/[0.02] hover:bg-white/[0.07]',
+                'text-white/90 outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/25',
+                'whitespace-nowrap',
+              ].join(' ')}
+            >
+              ↺ Сбросить
+            </a>
+          </div>
+        </form>
+      )}
+    </section>
   );
 }
