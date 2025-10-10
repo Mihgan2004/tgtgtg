@@ -1,3 +1,4 @@
+// src/components/HorizontalBar.tsx
 'use client';
 import { useState, useMemo } from 'react';
 
@@ -17,16 +18,11 @@ export default function HorizontalBar({ data, title, showTopN = 5 }: Props) {
   const [showAll, setShowAll] = useState(false);
 
   const { items, total, maxValue } = useMemo(() => {
-    if (!data || data.length === 0) {
-      return { items: [], total: 0, maxValue: 0 };
-    }
-
+    if (!data || data.length === 0) return { items: [], total: 0, maxValue: 0 };
     const sorted = [...data].sort((a, b) => b.value - a.value);
     const total = sorted.reduce((sum, d) => sum + d.value, 0);
     const maxValue = Math.max(...sorted.map(d => d.value));
-
     const displayed = showAll ? sorted : sorted.slice(0, showTopN);
-
     return { items: displayed, total, maxValue };
   }, [data, showAll, showTopN]);
 
@@ -44,14 +40,14 @@ export default function HorizontalBar({ data, title, showTopN = 5 }: Props) {
         {title}
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-2 min-w-0">
         {items.map((item, i) => {
           const percent = (item.value / total) * 100;
           const widthPercent = (item.value / maxValue) * 100;
 
           return (
-            <div key={`bar-${i}`} className="group">
-              <div className="flex items-center justify-between text-xs mb-1">
+            <div key={`bar-${i}`} className="group min-w-0">
+              <div className="flex items-center justify-between text-[12px] mb-1">
                 <span className="text-neutral-300 truncate flex-1 mr-2" title={item.description || item.label}>
                   {item.label}
                 </span>
@@ -59,13 +55,13 @@ export default function HorizontalBar({ data, title, showTopN = 5 }: Props) {
                   {item.value} ({percent.toFixed(1)}%)
                 </span>
               </div>
-              
+
               <div className="h-6 bg-camo-900/50 rounded-md overflow-hidden">
                 <div
                   className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-md transition-all duration-300 flex items-center px-2"
                   style={{ width: `${widthPercent}%` }}
                 >
-                  {widthPercent > 15 && (
+                  {widthPercent > 22 && (
                     <span className="text-xs font-semibold text-white num">
                       {item.value}
                     </span>

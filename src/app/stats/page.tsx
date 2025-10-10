@@ -24,7 +24,7 @@ const ExportModalIsland = dynamic(() => import('@/components/ExportModalIsland')
 
 export const revalidate = 0;
 
-/* ===================== МАППИНГИ ПОДПИСЕЙ ДЛЯ TARGET/RESULT ===================== */
+/* ===================== МАППИНГИ ДЛЯ TARGET / RESULT ===================== */
 const TARGET_MAIN_LABELS: Record<string, string> = {
   '1': 'Категория 1',
   '2': 'Категория 2',
@@ -61,54 +61,53 @@ const RESULT_MAIN_LABELS: Record<string, string> = {
 };
 const RESULT_HAS_SUB = new Set(['4', '5', '6']);
 const RESULT_SUB_LABELS: Record<string, Record<string, string>> = {
-  '4': { '1':'R4.1','2':'R4.2','3':'R4.3','4':'R4.4','5':'R4.5','6':'R4.6','7':'R4.7' },
-  '5': { '1':'R5.1','2':'R5.2','3':'R5.3','4':'R5.4','5':'R5.5' },
-  '6': { '1':'R6.1','2':'R6.2','3':'R6.3' },
+  '4': { '1': 'R4.1', '2': 'R4.2', '3': 'R4.3', '4': 'R4.4', '5': 'R4.5', '6': 'R4.6', '7': 'R4.7' },
+  '5': { '1': 'R5.1', '2': 'R5.2', '3': 'R5.3', '4': 'R5.4', '5': 'R5.5' },
+  '6': { '1': 'R6.1', '2': 'R6.2', '3': 'R6.3' },
 };
 
-/* ===================== УТИЛИТЫ ===================== */
-function parseAll(sp: Record<string, string | string[] | undefined>) {
-  const tab = ((sp.tab as string) || 'summary').trim();
-  const user = ((sp.user as string) || '').trim();
-  const rawFrom = sp.from as string | undefined;
-  const rawTo = sp.to as string | undefined;
+/* ===================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===================== */
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+type SearchShape = Record<string, string | string[] | undefined>;
+function parseSearch(sp: SearchShape) {
+  const tab = (sp.tab as string) || 'summary';
+  const user = (sp.user as string) || '';
   const all = (sp.all as string) === '1';
-  const from = rawFrom && rawFrom.trim() !== '' ? rawFrom : undefined;
-  const to = rawTo && rawTo.trim() !== '' ? rawTo : undefined;
-  return { tab, user, from, to, all };
+  const from = (sp.from as string) || '';
+  const to = (sp.to as string) || '';
+  return { tab, user, all, from, to };
 }
 
-function todayStr() { return new Date().toISOString().slice(0, 10); }
-
 type DistRow = { label: string; value?: number; count?: number; total?: number; reports?: number };
-const toNum = (d: DistRow) => Number(d.value ?? d.count ?? d.total ?? d.reports ?? 0);
+const toNum = (r: DistRow) => Number(r.value ?? r.count ?? r.total ?? r.reports ?? 0);
 
-function decodeTargetCombined(label: string) {
+function decodeTarget(label: string) {
   const [main, sub] = (label || '').split('::');
   if (TARGET_HAS_SUB.has(main) && sub) return TARGET_SUB_LABELS[main]?.[sub] ?? sub;
   return TARGET_MAIN_LABELS[main] ?? main;
 }
-function decodeResultCombined(label: string) {
+function decodeResult(label: string) {
   const [main, sub] = (label || '').split('::');
   if (RESULT_HAS_SUB.has(main) && sub) return RESULT_SUB_LABELS[main]?.[sub] ?? sub;
   return RESULT_MAIN_LABELS[main] ?? main;
 }
 
-/* ===================== B-ЧАСТЬ ===================== */
+/* ===================== B-ЧАСТЬ: АГРЕГАЦИИ ===================== */
 const MAIN_ALIASES: Record<string, string> = {
   'Тротиловом шашка 400 гр': 'Тротиловая шашка 400 гр',
   'ТБГ-7В (головная часть)': 'ТБГ-7В',
 };
 const norm = (m: string) => MAIN_ALIASES[m] ?? m;
 
+// Линии для суммирования
 const BPART_GROUPS: { key: string; mains: string[] }[] = [
   { key: 'ОФБЧ 2 кг / ОФБЧ 3 кг / ОФСП 2.5 кг', mains: ['ОФБЧ 2 кг', 'ОФБЧ 3 кг', 'ОФСП 2.5 кг'] },
-  { key: 'СЗ-6 / ПВВ-7',                        mains: ['СЗ-6', 'ПВВ-7'] },
-  { key: 'Тротиловая шашка 400 гр',             mains: ['Тротиловая шашка 400 гр'] },
-  { key: 'КЗ-7 / ПГ7-ВР',                       mains: ['КЗ-7', 'ПГ7-ВР'] },
+  { key: 'СЗ-6 / ПВВ-7', mains: ['СЗ-6', 'ПВВ-7'] },
+  { key: 'Тротиловая шашка 400 гр', mains: ['Тротиловая шашка 400 гр'] },
+  { key: 'КЗ-7 / ПГ7-ВР', mains: ['КЗ-7', 'ПГ7-ВР'] },
 ];
-
-// ВАЖНО: латиница в названии
 const KG_MAINS = new Set<string>(['Тротиловая шашка 400 гр', 'ТМ-62']);
 
 function parseQty(text: string) {
@@ -149,80 +148,93 @@ function aggregateBPart(rows: DistRow[]): BMainTotals {
 }
 
 const MAIN_DISPLAY_ORDER = [
-  'ОФБЧ 2 кг','ОФБЧ 3 кг','ОФСП 2.5 кг','СЗ-6','ПВВ-7','Тротиловая шашка 400 гр',
-  'КЗ-7','ПГ7-ВР','СЗ-3А','КЗ-6','ТБГ-7В','ТМ-62','Д-105',
+  'ОФБЧ 2 кг',
+  'ОФБЧ 3 кг',
+  'ОФСП 2.5 кг',
+  'СЗ-6',
+  'ПВВ-7',
+  'Тротиловая шашка 400 гр',
+  'КЗ-7',
+  'ПГ7-ВР',
+  'СЗ-3А',
+  'КЗ-6',
+  'ТБГ-7В',
+  'ТМ-62',
+  'Д-105',
 ];
 
-/* ===================== PAGE ===================== */
+/* ===================== СТРАНИЦА ===================== */
 export default async function StatsPage({
   searchParams,
 }: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  searchParams?: SearchShape;
 }) {
-  const sp = await searchParams;
-  const parsed = parseAll(sp);
+  const sp = parseSearch(searchParams || {});
+  let { tab, user, all, from, to } = sp;
 
-  // По умолчанию — только сегодня (если не задан диапазон и не all=1)
-  let { tab, user } = parsed;
-  let from = parsed.from;
-  let to = parsed.to;
-  let all = parsed.all;
+  // Если диапазон не задан и не "за всё время" — показываем "сегодня"
   if (!all && !from && !to) {
-    const today = todayStr();
-    from = today; to = today;
+    const t = todayISO();
+    from = t;
+    to = t;
   }
 
   const isUsers = tab === 'users';
   const isSummary = tab === 'summary';
 
   // Данные
-  const allowedUsers = await getAllowedUsersWithCounts(from, to, all);
-  const users = allowedUsers.map((u) => ({
-    id_code: String(u.id_code),   // ← берём КОД ДОСТУПА
-    cnt: Number(u.cnt) || 0,      // ← счётчик из поля cnt
-  }));
-  const scope: Record<string, any> = isUsers && user ? { id_code: user } : {};
   const bpartExpr = bPartExprFn();
   const step4TypeField = 'type_choice' as Indicator;
+  const scope: Record<string, any> = isUsers && user ? { id_code: user } : {};
 
   const [
-    targetCombined, bpartCombined, resultCombined, step4TypeData, totalReports,
-    step1IdCode, step2Date, step3Number, step5Coords, step6Freq, dopvCombined, vvCombined,
+    // агрегаты
+    targetCombined,
+    bpartCombined,
+    resultCombined,
+    step4TypeData,
+    totalReports,
+    // детальные поля (для TotalsList)
+    step1IdCode,
+    step2Date,
+    step3Number,
+    step5Coords,
+    step6Freq,
+    dopvCombined,
+    vvCombined,
+    allowedUsers,
   ] = await Promise.all([
-    getFieldDistributionExtended(targetExpr(), scope, from, to, all, 200),
-    getFieldDistributionExtended(bpartExpr, scope, from, to, all, 200),
-    getFieldDistributionExtended(resultExpr(), scope, from, to, all, 200),
-    getFieldDistributionExtended(step4TypeField, scope, from, to, all, 50),
-    getTotalReportsCount(scope, from, to, all),
+    getFieldDistributionExtended(targetExpr(), scope as any, from || undefined, to || undefined, !!all, 200),
+    getFieldDistributionExtended(bpartExpr, scope as any, from || undefined, to || undefined, !!all, 200),
+    getFieldDistributionExtended(resultExpr(), scope as any, from || undefined, to || undefined, !!all, 200),
+    getFieldDistributionExtended(step4TypeField, scope as any, from || undefined, to || undefined, !!all, 50),
+    getTotalReportsCount(scope as any, from || undefined, to || undefined, !!all),
 
-    getFieldDistributionExtended('id_code', scope, from, to, all, 9999),
-    getFieldDistributionExtended(CREATED_DAY_EXPR, scope, from, to, all, 9999),
-    getFieldDistributionExtended('number_n', scope, from, to, all, 9999),
-    getFieldDistributionExtended('coords', scope, from, to, all, 9999),
-    getFieldDistributionExtended('freq', scope, from, to, all, 9999),
-    getFieldDistributionExtended("COALESCE(dopv_main,'') || '::' || COALESCE(dopv_sub,'')", scope, from, to, all, 9999),
-    getFieldDistributionExtended("COALESCE(vv_main,'')   || '::' || COALESCE(vv_sub,'')",   scope, from, to, all, 9999),
+    getFieldDistributionExtended('id_code', scope as any, from || undefined, to || undefined, !!all, 9999),
+    getFieldDistributionExtended(CREATED_DAY_EXPR, scope as any, from || undefined, to || undefined, !!all, 9999),
+    getFieldDistributionExtended('number_n', scope as any, from || undefined, to || undefined, !!all, 9999),
+    getFieldDistributionExtended('coords', scope as any, from || undefined, to || undefined, !!all, 9999),
+    getFieldDistributionExtended('freq', scope as any, from || undefined, to || undefined, !!all, 9999),
+    getFieldDistributionExtended("COALESCE(dopv_main,'') || '::' || COALESCE(dopv_sub,'')", scope as any, from || undefined, to || undefined, !!all, 9999),
+    getFieldDistributionExtended("COALESCE(vv_main,'')   || '::' || COALESCE(vv_sub,'')", scope as any, from || undefined, to || undefined, !!all, 9999),
+
+    getAllowedUsersWithCounts(from || undefined, to || undefined, !!all),
   ]);
 
-  // Слайсы
+  // Слайсы для круговых/бар-чартов
   type Slice = { label: string; value: number };
-  const step10Slices: Slice[] = (targetCombined as DistRow[]).map((r) => ({
-    label: decodeTargetCombined(r.label), value: toNum(r),
-  }));
-  const resultSlices: Slice[] = (resultCombined as DistRow[]).map((r) => ({
-    label: decodeResultCombined(r.label), value: toNum(r),
-  }));
-  const step4TypeSlices: Slice[] = (step4TypeData as DistRow[]).map((r) => ({
-    label: r.label, value: toNum(r),
-  }));
+  const step10Slices: Slice[] = (targetCombined as DistRow[]).map((r) => ({ label: decodeTarget(r.label), value: toNum(r) }));
+  const resultSlices: Slice[] = (resultCombined as DistRow[]).map((r) => ({ label: decodeResult(r.label), value: toNum(r) }));
+  const step4TypeSlices: Slice[] = (step4TypeData as DistRow[]).map((r) => ({ label: r.label, value: toNum(r) }));
 
-  // В-часть — агрегаты
+  // В-часть: агрегаты по «линиям» + «Другое»
   const byMain = aggregateBPart(bpartCombined as DistRow[]);
   const covered = new Set(BPART_GROUPS.flatMap((g) => g.mains.map(norm)));
   const lineRows = BPART_GROUPS.map((g) => {
     let u = 0, k = 0;
     g.mains.forEach((m) => {
-      const mm = norm(m); const t = byMain[mm];
+      const mm = norm(m);
+      const t = byMain[mm];
       if (t) { u += t.units; k += t.kg; }
     });
     const isKgOnly = g.mains.every((m) => KG_MAINS.has(norm(m)));
@@ -234,17 +246,21 @@ export default async function StatsPage({
   const otherValue = otherUnits === 0 ? otherKg : otherUnits;
   const otherLabel = otherMains.length ? `Другое (${otherMains.join(', ')})` : 'Другое (нет)';
   lineRows.push({ label: otherLabel, value: otherValue });
-
-  const summaryBPartList: Slice[] = MAIN_DISPLAY_ORDER.map((name) => {
-    const m = norm(name); const t = byMain[m];
-    return { label: m, value: t ? (KG_MAINS.has(m) ? t.kg : t.units) : 0 };
-  });
-
   const bpartGroupSlices: Slice[] = lineRows.map((r) => ({ label: r.label, value: r.value }));
 
+  // Список для сводки по шагу 7 (в карточке «Текущая дата»)
+  const summaryBPartList: Slice[] = MAIN_DISPLAY_ORDER.map((name) => {
+    const m = norm(name);
+    const t = byMain[m];
+    const value = t ? (KG_MAINS.has(m) ? t.kg : t.units) : 0;
+    return { label: m, value };
+  });
+
+  // Преобразование наборов для TotalsList
   const toItems = (rows: DistRow[]) =>
-    rows.map((r) => ({ label: String(r.label || '—'), value: toNum(r) }))
-        .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label, 'ru'));
+    rows
+      .map((r) => ({ label: String(r.label || '—'), value: toNum(r) }))
+      .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label, 'ru'));
 
   const step1Items = toItems(step1IdCode as DistRow[]);
   const step2Items = toItems(step2Date as DistRow[]);
@@ -253,12 +269,12 @@ export default async function StatsPage({
   const step5Items = toItems(step5Coords as DistRow[]);
   const step6Items = toItems(step6Freq as DistRow[]);
 
-  const sumByMain = (rows: DistRow[], decodeLabel?: (main: string, sub?: string) => string) => {
+  const sumByMain = (rows: DistRow[], decoder?: (main: string, sub?: string) => string) => {
     const acc = new Map<string, number>();
     for (const r of rows) {
       const [main, sub] = (r.label || '').split('::');
       if (!main) continue;
-      const key = (decodeLabel ? decodeLabel(main, sub) : main) || main;
+      const key = (decoder ? decoder(main, sub) : main) || main;
       acc.set(key, (acc.get(key) || 0) + toNum(r));
     }
     return Array.from(acc.entries())
@@ -269,87 +285,70 @@ export default async function StatsPage({
   const step7BPartItems = MAIN_DISPLAY_ORDER
     .map((m) => {
       const t = byMain[m] || { units: 0, kg: 0 };
-      const value = KG_MAINS.has(m) ? t.kg : t.units;
-      return { label: m, value };
+      return { label: m, value: KG_MAINS.has(m) ? t.kg : t.units };
     })
     .filter((x) => x.value > 0);
 
-  const step8Items  = sumByMain(dopvCombined as DistRow[]);
-  const step9Items  = sumByMain(vvCombined as DistRow[]);
-  const step10Items = sumByMain(targetCombined as DistRow[], (main, sub) =>
-    decodeTargetCombined(`${main}${sub ? `::${sub}` : ''}`),
-  );
-  const step11Items = sumByMain(resultCombined as DistRow[], (main, sub) =>
-    decodeResultCombined(`${main}${sub ? `::${sub}` : ''}`),
-  );
+  const step8Items = sumByMain(dopvCombined as DistRow[]);
+  const step9Items = sumByMain(vvCombined as DistRow[]);
+  const step10Items = sumByMain(targetCombined as DistRow[], (main, sub) => decodeTarget(`${main}${sub ? `::${sub}` : ''}`));
+  const step11Items = sumByMain(resultCombined as DistRow[], (main, sub) => decodeResult(`${main}${sub ? `::${sub}` : ''}`));
 
-  /* ===================== RENDER (только UI) ===================== */
+  // Пользователи (для карточки «Всего отчётов / по кодам»)
+  const users = (allowedUsers || []).map((u: any) => ({ id_code: String(u.id_code), cnt: Number(u.cnt) || 0 }));
+
+  /* ===================== РЕНДЕР ===================== */
   return (
-    <main className="max-w-[1400px] mx-auto px-5 md:px-8 space-y-4 md:space-y-6">
+    <main className="max-w-[1400px] mx-auto px-4 sm:px-6 md:px-8 space-y-4 md:space-y-6">
+      {/* Шапка + Экспорт (внутри Tabs) */}
       <header className="pt-3">
-      <div className="mb-4 flex items-center justify-between">
-        <Tabs /> {/* в этом компоненте уже табы и кнопка Экспорт */}
-      </div>
+        <div className="mb-4 flex items-center justify-between">
+          <Tabs />
+        </div>
       </header>
 
-      <section
-        className={
-          // в users — всегда одна колонка, чтобы исключить налезание;
-          // в summary — период на всю ширину.
-          isUsers ? 'grid grid-cols-1 gap-3' : 'grid grid-cols-1 md:grid-cols-2 gap-3'
-        }
-      >
-        <div className={!isUsers ? 'md:col-span-2' : ''}>
-          <div className="card p-3">
-            <PeriodFilterBar
-              initialFrom={from || ''}
-              initialTo={to || ''}
-              initialAll={!!all}
-              resetHref={isUsers ? '/stats?tab=users' : '/stats'}
-            />
-          </div>
+      {/* Фильтры */}
+      <section className="grid grid-cols-1 gap-3">
+        <div className="card p-3">
+          <PeriodFilterBar
+            initialFrom={from}
+            initialTo={to}
+            initialAll={!!all}
+            resetHref={isUsers ? '/stats?tab=users' : '/stats'}
+          />
         </div>
 
         {isUsers && (
-          <div className="w-full">
-            <div className="card p-3">
-              <CodeFilterBar initialUser={user} />
-            </div>
+          <div className="card p-3">
+            <CodeFilterBar initialUser={user} />
           </div>
         )}
       </section>
-        {isSummary && (
-          <section className="mt-2">
-            <StatsSummary
-              totalReports={Number(totalReports) || 0}
-              userCounts={users}
-              step7Data={summaryBPartList}
-            />
-          </section>
-        )}
 
+      {/* Сводка («Текущая дата») — только в «Общий отчёт» */}
+      {isSummary && (
+        <section>
+          <StatsSummary
+            totalReports={Number(totalReports) || 0}
+            userCounts={users}
+            step7Data={summaryBPartList}
+          />
+        </section>
+      )}
 
-      {/* Ряд 1: донаты — без заголовков в карточках */}
-      <section className="charts-row">
-        <div className="chart-card">
-          <DonutLite title="Шаг 10" data={step10Slices} showTopN={3} groupOthers />
-        </div>
-        <div className="chart-card">
+      {/* Ряд 1: донаты */}
+      <section className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <DonutLite title="Шаг 10" data={step10Slices} showTopN={3} groupOthers />
         <DonutLite title="Результат" data={resultSlices} showTopN={3} groupOthers />
-        </div>
       </section>
 
-      {/* Ряд 2: В-часть суммарно + Типы */}
-      <section className="charts-row">
-        <div className="chart-card chart-340">
+      {/* Ряд 2: линии B-части + типы */}
+      <section className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <DonutLite title="В-часть · линии (суммы)" data={bpartGroupSlices} showTopN={5} groupOthers />
-        </div>
-        <div className="chart-card chart-340">
-          <HorizontalBar data={step4TypeSlices} title="" showTopN={6} />
-        </div>
+        <HorizontalBar data={step4TypeSlices} title="Типы (Шаг 4)" showTopN={6} />
       </section>
 
-      {/* Детальная сводка */}
+      {/* Детальная сводка по шагам */}
       <section>
         <TotalsList
           sections={[
@@ -368,6 +367,7 @@ export default async function StatsPage({
         />
       </section>
 
+      {/* Модалка экспорта (открывается из кнопки в Tabs) */}
       <ExportModalIsland />
     </main>
   );

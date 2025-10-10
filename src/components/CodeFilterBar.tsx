@@ -5,7 +5,6 @@ import { useCallback, useMemo, useState } from 'react';
 
 export default function CodeFilterBar({ initialUser }: { initialUser?: string }) {
   const [open, setOpen] = useState(false);
-
   const quickCodes = useMemo(() => ['100', '101', '102'], []);
 
   const writeSearch = useCallback((user?: string) => {
@@ -33,13 +32,11 @@ export default function CodeFilterBar({ initialUser }: { initialUser?: string })
       ].join(' ')}
       aria-label="Фильтр по коду"
     >
-      {/* Шапка: текст + кнопка; ниже — тонкая линия */}
       <div className="px-1">
         <div className="flex items-center justify-between">
           <span className="text-[11px] uppercase tracking-wide text-white/55">
             Быстрый доступ:
           </span>
-
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
@@ -53,11 +50,9 @@ export default function CodeFilterBar({ initialUser }: { initialUser?: string })
             {open ? 'Скрыть расширенный' : 'Расширенный фильтр'}
           </button>
         </div>
-
         <div className="mt-2 h-px w-full bg-white/12" />
       </div>
 
-      {/* Капсулы быстрых кодов */}
       <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
         {quickCodes.map((code) => (
           <button
@@ -78,7 +73,6 @@ export default function CodeFilterBar({ initialUser }: { initialUser?: string })
         ))}
       </div>
 
-      {/* Расширенный фильтр: поле + действия */}
       {open && (
         <form
           onSubmit={onSubmit}

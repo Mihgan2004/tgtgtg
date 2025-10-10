@@ -1,3 +1,4 @@
+// src/components/ExportModalIsland.tsx
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -23,7 +24,6 @@ export default function ExportModalIsland() {
 
   const closeModal = useCallback(() => {
     setOpen(false);
-    // если был ?export=1 — уберём его аккуратно (остальные параметры не трогаем)
     const q = new URLSearchParams(window.location.search);
     if (q.get('export') === '1') {
       q.delete('export');
@@ -33,18 +33,13 @@ export default function ExportModalIsland() {
   }, []);
 
   useEffect(() => {
-    // 1) автозапуск по ?export=1
     const q = new URLSearchParams(window.location.search);
     if (q.get('export') === '1') openModal();
 
-    // 2) слушаем кнопку из Tabs
     const onOpen = () => openModal();
     window.addEventListener('open-export-modal' as any, onOpen);
 
-    // 3) закрытие по Esc
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeModal();
-    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeModal(); };
     window.addEventListener('keydown', onKey);
 
     return () => {
@@ -54,12 +49,5 @@ export default function ExportModalIsland() {
   }, [openModal, closeModal]);
 
   if (!open) return null;
-  return (
-    <ExportModal
-      open={open}
-      onClose={closeModal}
-      initialFrom={from}
-      initialTo={to}
-    />
-  );
+  return <ExportModal open={open} onClose={closeModal} initialFrom={from} initialTo={to} />;
 }

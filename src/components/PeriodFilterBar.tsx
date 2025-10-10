@@ -101,7 +101,7 @@ export default function PeriodFilterBar({
       ].join(' ')}
       aria-label="Фильтр периода"
     >
-      {/* Шапка: текст и кнопка — ВЫШЕ линии; сама линия ниже */}
+      {/* Шапка */}
       <div className="px-1">
         <div className="flex items-center justify-between">
           <span className="text-[11px] uppercase tracking-wide text-white/55">
@@ -121,12 +121,10 @@ export default function PeriodFilterBar({
             {open ? 'Скрыть расширенный' : 'Расширенный фильтр'}
           </button>
         </div>
-
-        {/* Сплошная тонкая линия под шапкой */}
         <div className="mt-2 h-px w-full bg-white/12" />
       </div>
 
-      {/* Капсулы пресетов — центр, перенос при нехватке места */}
+      {/* Пресеты */}
       <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
         <button
           type="button"
@@ -161,7 +159,7 @@ export default function PeriodFilterBar({
           ))}
       </div>
 
-      {/* Расширенный фильтр: поля дат + действия (по центру) */}
+      {/* Расширенный фильтр */}
       {open && (
         <form
           onSubmit={onSubmit}
