@@ -26,7 +26,6 @@ export default function Tabs() {
 
   return (
     <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-      {/* Навигация по табам — скроллится по оси X на узких экранах */}
       <nav
         role="tablist"
         className={[
@@ -45,7 +44,7 @@ export default function Tabs() {
               role="tab"
               aria-selected={active}
               className={[
-                'inline-flex shrink-0 items-center justify-center leading-none',
+                'inline-flex items-center justify-center leading-none',
                 'h-9 px-4 sm:px-5 rounded-lg text-sm font-medium whitespace-nowrap transition-all duration-200',
                 'outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/40',
                 active
@@ -59,26 +58,25 @@ export default function Tabs() {
         })}
       </nav>
 
-      {/* Кнопка Экспорт — всегда помещается, уходит на вторую строку при узкой ширине */}
+      {/* Экспорт — всегда понятная кнопка с текстом */}
       <button
         type="button"
         onClick={openExport}
         className={[
-          'inline-flex shrink-0 items-center justify-center leading-none',
-          'h-9 px-3 sm:px-4 rounded-lg text-sm font-medium',
-          'border border-white/12 bg-white/[0.02] text-white/85',
+          'inline-flex items-center justify-center leading-none',
+          'h-9 px-4 rounded-lg text-sm font-medium',
+          'border border-white/12 bg-white/[0.02] text-white/90',
           'hover:bg-white/10 hover:text-white transition-colors',
           'outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/30',
         ].join(' ')}
         aria-label="Открыть экспорт"
-        title="Экспорт"
       >
-        ⭳ <span className="ml-1 hidden xs:inline">Экспорт</span>
+        ⭳ Экспорт
       </button>
 
       <style jsx global>{`
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .no-scrollbar::-webkit-scrollbar{display:none}
+        .no-scrollbar{-ms-overflow-style:none;scrollbar-width:none}
       `}</style>
     </div>
   );

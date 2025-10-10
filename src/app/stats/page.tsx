@@ -167,9 +167,12 @@ const MAIN_DISPLAY_ORDER = [
 export default async function StatsPage({
   searchParams,
 }: {
-  searchParams?: SearchShape;
+  /** ⬅️ в Next 15/React 19 это Promise — ждём его ниже */
+  searchParams: Promise<SearchShape>;
 }) {
-  const sp = parseSearch(searchParams || {});
+  // ⚠️ ФИКС: дожидаемся перед использованием
+  const spRaw = await searchParams;
+  const sp = parseSearch(spRaw || {});
   let { tab, user, all, from, to } = sp;
 
   // Если диапазон не задан и не "за всё время" — показываем "сегодня"
