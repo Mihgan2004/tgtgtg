@@ -177,10 +177,9 @@ export default async function StatsPage({
 
   // Данные
   const allowedUsers = await getAllowedUsersWithCounts(from, to, all);
-  const users = (allowedUsers as any[]).map((u) => ({
-    user_id: String(u.user_id),
-    username: u.username ?? null,
-    count: Number(u.count) || 0,
+  const users = allowedUsers.map((u) => ({
+    id_code: String(u.id_code),   // ← берём КОД ДОСТУПА
+    cnt: Number(u.cnt) || 0,      // ← счётчик из поля cnt
   }));
   const scope: Record<string, any> = isUsers && user ? { id_code: user } : {};
   const bpartExpr = bPartExprFn();

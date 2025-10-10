@@ -2,17 +2,26 @@
 
 import React, { memo, useMemo } from 'react';
 
-type UserCount = {
-  user_id: string;
-  username?: string | null;
-  count: number;
+/** Унифицированные строки для блока "По кодам доступа" */
+type CodeCount = {
+  id_code: string;   // то, что надо показывать (например, "260600")
+  cnt: number;       // количество отчетов
+};
+
+type LegacyUserCount = {
+  user_id?: string;           // старое поле — игнорируем в UI
+  username?: string | null;   // старое поле — игнорируем в UI
+  count?: number;             // старое поле — количество
+  id_code?: string;           // если вдруг уже приходит
+  cnt?: number;               // если вдруг уже приходит
 };
 
 type Step7Row = { label: string; value: number };
 
 type Props = {
   totalReports?: number;
-  userCounts?: UserCount[];
+  /** Массив в любом из форматов: [{id_code,cnt}] ИЛИ [{user_id,username,count}] */
+  userCounts?: LegacyUserCount[];
   step7Data?: Step7Row[];
   /** Показывать лоадер поверх содержимого */
   loading?: boolean;
@@ -43,9 +52,7 @@ function SectionCard({
 }
 
 function SkeletonRow() {
-  return (
-    <div className="h-7 rounded bg-white/5 animate-pulse" />
-  );
+  return <div className="h-7 rounded bg-white/5 animate-pulse" />;
 }
 
 export default memo(function StatsSummary({
@@ -66,14 +73,36 @@ export default memo(function StatsSummary({
     []
   );
 
-  const topUsers = useMemo(
-    () => userCounts.slice(0, limitUsers),
-    [userCounts, limitUsers]
+  // Нормализуем вход: хотим массив { id_code, cnt }
+  const normalizedCodes: CodeCount[] = useMemo(() => {
+    return (userCounts || [])
+      .map((row) => {
+        // предпочитаем явный id_code; если нет — используем user_id как запасной
+        const id_code =
+          (row.id_code ?? row.user_id ?? '').toString().trim() || 'Без значения';
+
+        // количество может быть в cnt или count
+        const cnt = typeof row.cnt === 'number'
+          ? row.cnt
+          : typeof row.count === 'number'
+          ? row.count
+          : 0;
+
+        return { id_code, cnt };
+      })
+      // отбрасываем совсем пустые/нулевые записи
+      .filter((r) => r.id_code && r.id_code !== 'Без значения')
+      .sort((a, b) => b.cnt - a.cnt);
+  }, [userCounts]);
+
+  const topCodes = useMemo(
+    () => normalizedCodes.slice(0, limitUsers),
+    [normalizedCodes, limitUsers]
   );
 
   const topStep7 = useMemo(
     () =>
-      step7Data
+      (step7Data || [])
         .slice() // не мутируем props
         .sort((a, b) => b.value - a.value)
         .slice(0, limitStep7),
@@ -114,22 +143,21 @@ export default memo(function StatsSummary({
               </>
             )}
 
-            {!loading && topUsers.length === 0 && (
+            {!loading && topCodes.length === 0 && (
               <div className="text-sm text-neutral-500">Нет данных</div>
             )}
 
             {!loading &&
-              topUsers.map((user) => (
+              topCodes.map((code) => (
                 <div
-                  key={user.user_id}
+                  key={code.id_code}
                   className="flex items-center justify-between text-sm py-1.5 px-2 rounded bg-camo-900/30 hover:bg-camo-800/50 transition-colors"
                 >
                   <span className="text-neutral-300 truncate mr-2">
-                    {user.user_id}
-                    {user.username ? ` · ${user.username}` : ''}
+                    {code.id_code}
                   </span>
                   <span className="font-semibold text-emerald-300 num">
-                    {nf.format(user.count)}
+                    {nf.format(code.cnt)}
                   </span>
                 </div>
               ))}

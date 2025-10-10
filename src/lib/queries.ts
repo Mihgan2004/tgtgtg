@@ -1,20 +1,13 @@
-// src/lib/queries.ts
+// src/lib/queries.ts — single source of truth (clean)
 import { Pool } from 'pg';
 
 /* ===================== INIT ===================== */
-
 const DATABASE_URL = process.env.DATABASE_URL;
-if (!DATABASE_URL) {
-  throw new Error('ENV DATABASE_URL is required');
-}
+if (!DATABASE_URL) throw new Error('ENV DATABASE_URL is required');
 
-export const pool = new Pool({
-  connectionString: DATABASE_URL,
-  // ssl: { rejectUnauthorized: false }, // включи при необходимости
-});
+export const pool = new Pool({ connectionString: DATABASE_URL });
 
 /* ===================== TYPES ===================== */
-
 export type Indicator =
   | 'id_code'
   | 'number_n'
@@ -35,10 +28,8 @@ export type Indicator =
   | 'date_time';
 
 /* ===================== COMMON SQL CONSTS ===================== */
-
-export const CREATED_AT_COL = 'r.created_at';
-export const CREATED_DAY_EXPR =
-  `to_char(${CREATED_AT_COL} AT TIME ZONE 'UTC', 'YYYY-MM-DD')`;
+export const CREATED_AT_COL = 'r.created_at'; // есть в schema.sql
+export const CREATED_DAY_EXPR = `to_char(${CREATED_AT_COL} AT TIME ZONE 'UTC', 'YYYY-MM-DD')`;
 
 export function targetExpr(): string {
   return `COALESCE(r.target_main,'') || '::' || COALESCE(r.target_sub,'')`;
@@ -50,10 +41,8 @@ export function bPartExpr(): string {
   return `COALESCE(r.b_part_main,'') || '::' || COALESCE(r.b_part_sub1,'') || '::' || COALESCE(r.b_part_sub2,'')`;
 }
 
-/* ===================== UTILS ===================== */
-
-// ⚠️ экспортируем q и НЕ используем generic у c.query — так уходит TS-ошибка QueryResultRow
-export async function q<T = any>(sql: string, params: any[] = []): Promise<T[]> {
+/* ===================== DB UTILS ===================== */
+async function q<T = any>(sql: string, params: any[] = []): Promise<T[]> {
   const c = await pool.connect();
   try {
     const r = await c.query(sql, params);
@@ -63,9 +52,7 @@ export async function q<T = any>(sql: string, params: any[] = []): Promise<T[]> 
   }
 }
 
-function isIsoDate(s?: string) {
-  return !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
-}
+function isIsoDate(s?: string) { return !!s && /^\d{4}-\d{2}-\d{2}$/.test(s); }
 
 /** WHERE + params для таблицы reports r */
 function buildWhere(
@@ -76,27 +63,19 @@ function buildWhere(
 ): { whereSql: string; params: any[] } {
   const where: string[] = [];
   const params: any[] = [];
-  const push = (v: any) => {
-    params.push(v);
-    return params.length; // возвращаем индекс для $n
-  };
+  const add = (v: any) => { params.push(v); return params.length; };
 
-  if (scope?.id_code) {
-    const i = push(String(scope.id_code));
-    where.push(`r.id_code = $${i}`);
-  }
+  if (scope?.id_code) { const i = add(String(scope.id_code)); where.push(`r.id_code = $${i}`); }
+  if (scope?.user_id) { const i = add(String(scope.user_id)); where.push(`r.user_id = $${i}`); }
 
   if (!all) {
     if (isIsoDate(from) && isIsoDate(to)) {
-      const i1 = push(from);
-      const i2 = push(to);
+      const i1 = add(from); const i2 = add(to);
       where.push(`${CREATED_AT_COL}::date BETWEEN $${i1}::date AND $${i2}::date`);
     } else if (isIsoDate(from)) {
-      const i = push(from);
-      where.push(`${CREATED_AT_COL}::date = $${i}::date`);
+      const i = add(from); where.push(`${CREATED_AT_COL}::date = $${i}::date`);
     } else if (isIsoDate(to)) {
-      const i = push(to);
-      where.push(`${CREATED_AT_COL}::date = $${i}::date`);
+      const i = add(to); where.push(`${CREATED_AT_COL}::date = $${i}::date`);
     }
   }
 
@@ -104,27 +83,27 @@ function buildWhere(
 }
 
 /* ===================== DISTRIBUTIONS ===================== */
-
 export async function getFieldDistributionExtended(
   fieldExpr: string | Indicator,
   scope?: Record<string, any>,
   from?: string,
   to?: string,
   all?: boolean,
-  limit: number = 100,
-): Promise<Array<{ label: string; count: number }>> {
-  const expr = typeof fieldExpr === 'string' ? fieldExpr : `r.${fieldExpr}`;
+  topN?: number,
+) {
+  const field = typeof fieldExpr === 'string' ? fieldExpr : `r.${fieldExpr}`;
   const { whereSql, params } = buildWhere(scope, from, to, all);
-
+  const limitClause = topN && Number.isFinite(topN) ? `LIMIT $${params.length + 1}` : '';
   const sql = `
-    SELECT ${expr} AS label, COUNT(*)::int AS count
+    SELECT ${field} AS label, COUNT(*)::int AS count
     FROM reports r
     ${whereSql}
-    GROUP BY ${expr}
-    ORDER BY COUNT(*) DESC, ${expr} ASC
-    LIMIT ${Math.max(1, limit)}
+    GROUP BY 1
+    ORDER BY count DESC NULLS LAST
+    ${limitClause}
   `;
-  return q(sql, params);
+  const finalParams = topN && Number.isFinite(topN) ? [...params, topN] : params;
+  return q<{ label: string | null; count: number }>(sql, finalParams);
 }
 
 export async function getFieldDistribution(
@@ -133,97 +112,11 @@ export async function getFieldDistribution(
   from?: string,
   to?: string,
   all?: boolean,
-  limit: number = 100,
 ) {
-  return getFieldDistributionExtended(field, scope, from, to, all, limit);
+  return getFieldDistributionExtended(`r.${field}`, scope, from, to, all);
 }
 
-/* ===================== TOTALS / USERS ===================== */
-
-export async function getTotalReportsCount(
-  scope?: Record<string, any>,
-  from?: string,
-  to?: string,
-  all?: boolean,
-): Promise<number> {
-  const { whereSql, params } = buildWhere(scope, from, to, all);
-  const rows = await q<{ total: number }>(
-    `SELECT COUNT(*)::int AS total FROM reports r ${whereSql}`,
-    params,
-  );
-  return rows[0]?.total ?? 0;
-}
-
-/** id_code + username + count (учитывает фильтры) */
-export async function getAllowedUsersWithCounts(
-  from?: string,
-  to?: string,
-  all?: boolean,
-): Promise<Array<{ user_id: string; username: string | null; count: number }>> {
-  const { whereSql, params } = buildWhere(undefined, from, to, all);
-  const sql = `
-    SELECT
-      r.id_code::text AS user_id,
-      u.username::text AS username,
-      COUNT(*)::int AS count
-    FROM reports r
-    LEFT JOIN tg_users u ON u.id = r.user_id
-    ${whereSql}
-    GROUP BY r.id_code, u.username
-    ORDER BY COUNT(*) DESC, r.id_code ASC
-  `;
-  return q(sql, params);
-}
-
-/** только id_code + count */
-export async function getAllowedCodesWithCounts(
-  from?: string,
-  to?: string,
-  all?: boolean,
-): Promise<Array<{ id_code: string; count: number }>> {
-  const { whereSql, params } = buildWhere(undefined, from, to, all);
-  const sql = `
-    SELECT r.id_code::text AS id_code, COUNT(*)::int AS count
-    FROM reports r
-    ${whereSql}
-    GROUP BY r.id_code
-    ORDER BY COUNT(*) DESC, r.id_code ASC
-  `;
-  return q(sql, params);
-}
-
-/** общий тотал (оставляем для совместимости; UI-блок «служебные метрики» вы выключили) */
-export async function getTotalsCommon(
-  scope?: Record<string, any>,
-  from?: string,
-  to?: string,
-  all?: boolean,
-): Promise<Array<{ label: string; value: number }>> {
-  const total = await getTotalReportsCount(scope, from, to, all);
-  return [
-    { label: 'Количество отчётов (равно количеству заполнений)', value: total },
-  ];
-}
-
-/* ===================== TIMELINE / TOPN ===================== */
-
-export async function getDailyTimeline(
-  scope?: Record<string, any>,
-  from?: string,
-  to?: string,
-  all?: boolean,
-): Promise<Array<{ day: string; count: number }>> {
-  const { whereSql, params } = buildWhere(scope, from, to, all);
-  const sql = `
-    SELECT ${CREATED_DAY_EXPR} AS day, COUNT(*)::int AS count
-    FROM reports r
-    ${whereSql}
-    GROUP BY ${CREATED_DAY_EXPR}
-    ORDER BY ${CREATED_DAY_EXPR} ASC
-  `;
-  return q(sql, params);
-}
-
+/** top-N для индикатора (удобный враппер) */
 export async function getFieldTopN(
   field: Indicator,
   n: number,
@@ -235,15 +128,11 @@ export async function getFieldTopN(
   return getFieldDistributionExtended(field, scope, from, to, all, n);
 }
 
-/* ===================== DETAILED / PAGED (для export-detailed и таблиц) ===================== */
-
+/* ===================== DETAILED / PAGED ===================== */
 export interface ReportRow {
   id: number;
-  user_id: string | null;
-  id_code: string;
-  username: string | null;
-  chat_id: string | null;
   date_time: string | null;
+  id_code: string | null;
   number_n: string | null;
   type_choice: string | null;
   coords: string | null;
@@ -259,74 +148,47 @@ export interface ReportRow {
   target_sub: string | null;
   result_main: string | null;
   result_sub: string | null;
-  meta: any | null;
-  created_at: string; // ISO
 }
 
 export async function getReportsPaged(
-  page: number,
-  pageSize: number,
-  scope?: Record<string, any>,
+  scope: Record<string, any> = {},
+  page = 1,
+  pageSize = 20,
   from?: string,
   to?: string,
   all?: boolean,
-  order: 'asc' | 'desc' = 'desc',
 ): Promise<{ rows: ReportRow[]; total: number }> {
   const { whereSql, params } = buildWhere(scope, from, to, all);
-  const limit = Math.max(1, Math.min(1000, pageSize));
-  const offset = Math.max(0, (Math.max(1, page) - 1) * limit);
-
+  const offset = (page - 1) * pageSize;
   const dataSql = `
-    SELECT
-      r.id,
-      r.user_id::text,
-      r.id_code,
-      u.username,
-      r.chat_id::text,
-      r.date_time,
-      r.number_n,
-      r.type_choice,
-      r.coords,
-      r.freq,
-      r.b_part_main,
-      r.b_part_sub1,
-      r.b_part_sub2,
-      r.dopv_main,
-      r.dopv_sub,
-      r.vv_main,
-      r.vv_sub,
-      r.target_main,
-      r.target_sub,
-      r.result_main,
-      r.result_sub,
-      r.meta,
-      (r.created_at AT TIME ZONE 'UTC')::timestamptz AS created_at
+    SELECT r.id, to_char(${CREATED_AT_COL}, 'YYYY-MM-DD HH24:MI:SS') AS date_time,
+           r.id_code, r.number_n, r.type_choice, r.coords, r.freq,
+           r.b_part_main, r.b_part_sub1, r.b_part_sub2,
+           r.dopv_main, r.dopv_sub,
+           r.vv_main, r.vv_sub,
+           r.target_main, r.target_sub,
+           r.result_main, r.result_sub
     FROM reports r
-    LEFT JOIN tg_users u ON u.id = r.user_id
     ${whereSql}
-    ORDER BY ${CREATED_AT_COL} ${order.toUpperCase()}
-    LIMIT ${limit} OFFSET ${offset}
+    ORDER BY ${CREATED_AT_COL} DESC NULLS LAST, r.id DESC
+    LIMIT $${params.length + 1} OFFSET $${params.length + 2}
   `;
   const countSql = `SELECT COUNT(*)::int AS total FROM reports r ${whereSql}`;
+
   const [rows, totalArr] = await Promise.all([
-    q<ReportRow>(dataSql, params),
+    q<ReportRow>(dataSql, [...params, pageSize, offset]),
     q<{ total: number }>(countSql, params),
   ]);
   return { rows, total: totalArr[0]?.total ?? 0 };
 }
 
 /* ===================== DECODE HELPERS (B-PART) ===================== */
-
 const KG_MAINS = new Set<string>(['Тротиловая шашка 400 гр', 'ТМ-62']);
 
-/**
- * Преобразует путь подкатегорий В-части в «человеческое» значение.
- * Весовые позиции → «X кг», прочие → «1 шт.».
- */
+/** Весовые позиции → «X кг», прочие → «1 шт.» */
 export function decodeBPart(main: string, subPath?: string): string {
   const m = (main || '').trim();
   const s = (subPath || '').trim();
-
   if (KG_MAINS.has(m)) {
     const num = s.match(/[\d.,]+/)?.[0];
     if (num) return `${num.replace(',', '.')} кг`;
@@ -336,9 +198,152 @@ export function decodeBPart(main: string, subPath?: string): string {
 }
 
 /* ===================== MISC ===================== */
+export async function getDistinctValues(field: Indicator, scope?: Record<string, any>) {
+  const { whereSql, params } = buildWhere(scope);
+  const sql = `SELECT DISTINCT r.${field} AS value FROM reports r ${whereSql} ORDER BY 1`;
+  return q<{ value: string | null }>(sql, params);
+}
 
-export async function getDistinctValues(field: Indicator): Promise<string[]> {
-  const sql = `SELECT DISTINCT ${'r.' + field} AS v FROM reports r WHERE r.${field} IS NOT NULL ORDER BY 1`;
-  const rows = await q<{ v: string }>(sql);
-  return rows.map(r => String(r.v));
+export async function getDailyTimeline(
+  field: Indicator,
+  scope?: Record<string, any>,
+  from?: string,
+  to?: string,
+  all?: boolean,
+): Promise<{ day: string; count: number }[]> {
+  const { whereSql, params } = buildWhere(scope, from, to, all);
+  const sql = `
+    SELECT ${CREATED_DAY_EXPR} AS day, COUNT(r.${field})::int AS count
+    FROM reports r
+    ${whereSql}
+    GROUP BY 1
+    ORDER BY 1
+  `;
+  return q(sql, params);
+}
+
+/* ===================== TOTALS ===================== */
+export async function getTotalReportsCount(
+  scope: Record<string, any> = {},
+  from?: string | null,
+  to?: string | null,
+  allTime = false,
+): Promise<number> {
+  const { whereSql, params } = buildWhere(scope, from ?? undefined, to ?? undefined, allTime);
+  const rows = await q<{ total: number }>(`SELECT COUNT(*)::int AS total FROM reports r ${whereSql}`, params);
+  return rows[0]?.total ?? 0;
+}
+
+/** id_code + username + count (учитывает фильтры) */
+export async function getAllowedUsersWithCounts(
+  from?: string | null,
+  to?: string | null,
+  allTime = false
+): Promise<{ id_code: string; username: string | null; cnt: number }[]> {
+  const { whereSql, params } = buildWhere(undefined, from ?? undefined, to ?? undefined, allTime);
+  const sql = `
+    SELECT
+      r.id_code,
+      MAX(u.username) AS username,
+      COUNT(*)::int AS cnt
+    FROM reports r
+    LEFT JOIN tg_users u ON u.id = r.user_id
+    ${whereSql}
+    GROUP BY r.id_code
+    HAVING r.id_code IS NOT NULL
+    ORDER BY cnt DESC, r.id_code
+  `;
+  return q(sql, params);
+}
+
+export async function getTotalsCommon(
+  scope: Record<string, any> = {},
+  from?: string,
+  to?: string,
+  all?: boolean,
+) {
+  const [byType, byBMain, byVVMain, byTarget, byResult] = await Promise.all([
+    getFieldDistribution('type_choice', scope, from, to, all),
+    getFieldDistribution('b_part_main', scope, from, to, all),
+    getFieldDistribution('vv_main', scope, from, to, all),
+    getFieldDistributionExtended(targetExpr(), scope, from, to, all),
+    getFieldDistributionExtended(resultExpr(), scope, from, to, all),
+  ]);
+  return { byType, byBMain, byVVMain, byTarget, byResult };
+}
+
+export async function getAllowedCodesWithCounts(
+  from?: string,
+  to?: string,
+  all?: boolean,
+): Promise<{ id_code: string; cnt: number }[]> {
+  const { whereSql, params } = buildWhere(undefined, from, to, all);
+  const sql = `
+    SELECT r.id_code AS id_code, COUNT(*)::int AS cnt
+    FROM reports r
+    ${whereSql}
+    GROUP BY r.id_code
+    HAVING r.id_code IS NOT NULL
+    ORDER BY cnt DESC NULLS LAST, r.id_code
+  `;
+  return q(sql, params);
+}
+
+/* ===================== AGG HELPERS FOR /api/stats ===================== */
+const INDICATOR_COLUMNS: Indicator[] = [
+  'id_code','number_n','type_choice','coords','freq',
+  'b_part_main','b_part_sub1','b_part_sub2',
+  'dopv_main','dopv_sub','vv_main','vv_sub',
+  'target_main','target_sub','result_main','result_sub','date_time'
+];
+
+/** Top-K by column for the last N days (inclusive). */
+export async function topByColumn(
+  column: Indicator,
+  days: number,
+  k: number = 10
+): Promise<{ label: string | null; count: number }[]> {
+  if (!INDICATOR_COLUMNS.includes(column)) throw new Error('Unsupported column: ' + column);
+  const sql = `
+    SELECT r.${column} AS label, COUNT(*)::int AS count
+    FROM reports r
+    WHERE ${CREATED_AT_COL} >= NOW() - ($1::text || ' days')::interval
+    GROUP BY 1
+    ORDER BY count DESC NULLS LAST
+    LIMIT $2
+  `;
+  return q(sql, [days, k]);
+}
+
+/** Per-day Top-K by column for the last N days (inclusive). */
+export async function dailyTopKByColumn(
+  column: Indicator,
+  days: number,
+  k: number = 5
+): Promise<{ day: string; top: { label: string | null; count: number }[] | null }[]> {
+  if (!INDICATOR_COLUMNS.includes(column)) throw new Error('Unsupported column: ' + column);
+  const sql = `
+    WITH dates AS (
+      SELECT generate_series(CURRENT_DATE - ($1::int - 1), CURRENT_DATE, INTERVAL '1 day')::date AS d
+    ),
+    counts AS (
+      SELECT DATE(${CREATED_AT_COL})::date AS d, r.${column} AS label, COUNT(*)::int AS count
+      FROM reports r
+      WHERE ${CREATED_AT_COL} >= NOW() - ($1::text || ' days')::interval
+      GROUP BY 1,2
+    ),
+    ranked AS (
+      SELECT c.*, ROW_NUMBER() OVER (PARTITION BY d ORDER BY count DESC NULLS LAST) AS rk
+      FROM counts c
+    )
+    SELECT d::text AS day,
+           CASE WHEN COUNT(r.label) FILTER (WHERE r.rk <= $2) = 0 THEN NULL
+                ELSE JSON_AGG(JSON_BUILD_OBJECT('label', r.label, 'count', r.count) ORDER BY r.count DESC)
+           END AS top
+    FROM dates
+    LEFT JOIN ranked r USING (d)
+    GROUP BY d
+    ORDER BY d;
+  `;
+  return q(sql, [days, k]);
 }
