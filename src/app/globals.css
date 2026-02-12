@@ -1,53 +1,490 @@
+/* src/app/globals.css */
 /* Tailwind v4: подключение одной строкой */
 @import "tailwindcss";
 
 /* Вся кастомная тема — здесь */
 @theme {
-  /* палитра "military" */
-  --color-camo-950: #07100b;
-  --color-camo-900: #0b1b12;
-  --color-camo-800: #102319;
-  --color-camo-700: #143021;
-  --color-camo-600: #1b3c2a;
-  --color-camo-500: #254d38;
-  --color-camo-400: #2f6047;
-  --color-camo-300: #3c7a5a;
+  /* Обновлённая палитра "military" - более живая и контрастная */
+  --color-camo-950: #0f1512;
+  --color-camo-900: #0a1510;
+  --color-camo-800: #0f201a;
+  --color-camo-700: #163028;
+  --color-camo-600: #1e4035;
+  --color-camo-500: #2a5545;
+  --color-camo-400: #3a7060;
+  --color-camo-300: #4a8a75;
+
+  /* Акцентные цвета */
+  --color-accent-primary: #22c55e;    /* emerald-500 adjusted */
+  --color-accent-secondary: #3b82f6;  /* blue-500 */
+  --color-accent-warning: #f59e0b;    /* amber-500 */
+  --color-accent-danger: #ef4444;     /* red-500 */
 
   /* шрифт и тени как токены */
   --font-ui: Inter, system-ui, "Segoe UI", Roboto, Arial, "Noto Sans",
     "Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol", sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  --shadow-soft: 0 6px 24px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.03);
+  /* Улучшенные тени с большей глубиной */
+  --shadow-soft: 0 8px 24px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.02);
+  --shadow-glow: 0 0 24px rgba(34, 197, 94, 0.3);
+  --shadow-glow-strong: 0 0 32px rgba(34, 197, 94, 0.5);
+
+  /* Радиус */
+  --radius: 12px;
+}
+
+/* КРИТИЧНЫЕ ФИКСЫ для мобильных устройств */
+* {
+  box-sizing: border-box;
+}
+
+html {
+  overflow-x: hidden;
+  width: 100%;
+  height: 100%;
+}
+
+body {
+  overflow-x: hidden;
+  width: 100%;
+  min-height: 100%;
+  position: relative;
 }
 
 /* базовые стили */
-:root { color-scheme: dark; }
-html, body { height: 100%; }
-body { @apply bg-camo-900 text-neutral-200 antialiased font-[var(--font-ui)]; }
-
-/* тонкая «техническая» сетка фона */
-.bg-grid {
-  background-image: linear-gradient(to right, rgba(255,255,255,.05) 1px, transparent 1px);
-  background-size: 64px 100%;
+:root { 
+  color-scheme: dark;
 }
 
-/* карточки */
-.card { @apply rounded-2xl p-4 border border-white/5 shadow-[var(--shadow-soft)] bg-camo-800/80; }
-.card-tight { @apply rounded-xl p-3 border border-white/5 shadow-[var(--shadow-soft)] bg-camo-800/80; }
+body { 
+  font-family: var(--font-ui);
+  margin: 0;
+  padding: 0;
+  background-color: var(--color-camo-950);
+  color: #e6fff1;
+}
+
+/* тонкая «техническая» сетка фона - УЛУЧШЕНА с градиентом */
+.bg-grid {
+  background-color: #0a1510;
+  background-image: 
+    radial-gradient(circle at 20% 50%, rgba(34, 197, 94, 0.03) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(58, 112, 96, 0.04) 0%, transparent 50%),
+    linear-gradient(to right, rgba(255,255,255,.025) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255,255,255,.02) 1px, transparent 1px);
+  background-size: 
+    100% 100%,
+    100% 100%,
+    40px 40px,
+    40px 40px;
+  background-position: center center;
+}
+
+/* карточки - добавлена защита от overflow + улучшенный дизайн */
+.card { 
+  border-radius: var(--radius);
+  padding: 1.25rem; /* p-5 */
+  border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: var(--shadow-soft);
+  background-color: rgba(10, 21, 16, 0.9); /* camo-800/90 adjusted */
+  overflow: hidden;
+  width: 100%;
+  backdrop-filter: blur(10px);
+  transition: transform 0.2s ease-out, box-shadow 0.2s ease-out, border-color 0.2s ease-out;
+}
+
+.card:hover {
+  border-color: rgba(34, 197, 94, 0.3);
+  box-shadow: 0 8px 32px rgba(0,0,0,.5), 0 0 20px rgba(34, 197, 94, 0.1);
+  transform: translateY(-2px);
+}
+
+.card-graph {
+  border-radius: 16px;
+  padding: 1.5rem; /* p-6 */
+  height: 360px;
+}
+
+.card-tight { 
+  border-radius: var(--radius);
+  padding: 0.75rem; /* p-3 */
+  border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: var(--shadow-soft);
+  background-color: rgba(10, 21, 16, 0.9);
+  overflow: hidden;
+  width: 100%;
+  backdrop-filter: blur(10px);
+  transition: transform 0.2s ease-out, box-shadow 0.2s ease-out, border-color 0.2s ease-out;
+}
+
+.card-tight:hover {
+  border-color: rgba(34, 197, 94, 0.2);
+  transform: translateY(-2px);
+}
 
 /* утилиты */
-.h1 { @apply text-3xl md:text-4xl font-semibold tracking-tight; }
-.muted { @apply text-sm text-neutral-400; }
-.num { font-feature-settings:"tnum"; }
-/* лёгкая анимация появления диаграммы и легенды */
+.h1 { 
+  font-size: 2rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  word-break: break-word;
+}
+
+.muted { 
+  font-size: 0.75rem;
+  color: #7fa68e;
+}
+
+.num { 
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Анимации - улучшенные */
 @keyframes pop {
-  from { transform: scale(.96); opacity: 0; }
-  to   { transform: scale(1); opacity: 1; }
+  0% { 
+    transform: scale(0.9) translateY(10px);
+    opacity: 0;
+  }
+  60% { 
+    transform: scale(1.02);
+    opacity: 1;
+  }
+  100% { 
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
 }
+
 @keyframes rise {
-  from { transform: translateY(6px); opacity: 0; }
-  to   { transform: translateY(0); opacity: 1; }
+  0% { 
+    transform: translateY(16px);
+    opacity: 0;
+  }
+  100% { 
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
-.donut-pop { animation: pop .4s cubic-bezier(.2,.8,.2,1) both; }
-.legend-fade { animation: rise .5s ease .15s both; }
+
+@keyframes glow-pulse {
+  0%, 100% { 
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
+  }
+  50% { 
+    box-shadow: 0 0 30px rgba(34, 197, 94, 0.5);
+  }
+}
+
+@keyframes fade-in {
+  0% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in {
+  0% {
+    transform: translateX(-20px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes scale-in {
+  0% {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes chart-slice {
+  0% {
+    stroke-dashoffset: 100;
+    opacity: 0;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
+
+@keyframes bar-grow {
+  0% {
+    width: 0;
+    opacity: 0;
+  }
+  100% {
+    width: 100%;
+    opacity: 1;
+  }
+}
+
+.chart-slice {
+  animation: chart-slice 1s ease-in-out both;
+}
+
+.chart-bar {
+  animation: bar-grow 0.8s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.donut-pop { 
+  animation: pop 0.5s cubic-bezier(0.4, 0, 0.2, 1.2) both;
+}
+
+.legend-fade { 
+  animation: rise 0.6s cubic-bezier(0.4, 0, 0.2, 1) 0.1s both;
+}
+
+.fade-in {
+  animation: fade-in 0.18s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.slide-in {
+  animation: slide-in 0.4s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.glow-active {
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+.scale-in {
+  animation: scale-in 0.3s cubic-bezier(0.4, 0, 0.2, 1.2) both;
+}
+
+/* Улучшенные кнопки */
+button, a[class*="px-"] {
+  transition: all 0.2s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:active, a[class*="px-"]:active {
+  transform: scale(0.96);
+}
+
+/* Инпуты - улучшенный мобильный вид */
+input[type="date"],
+input[type="text"],
+input[type="checkbox"] {
+  touch-action: manipulation;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+input[type="date"],
+input[type="text"] {
+  border-radius: var(--radius);
+  background-color: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #e6fff1;
+  padding: 0.5rem 0.75rem;
+  font-size: 14px;
+  min-height: 44px;
+  width: 100%;
+}
+
+input[type="date"]:focus,
+input[type="text"]:focus {
+  outline: none;
+  border-color: #3a7060;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2);
+}
+
+input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255,255,255,0.2);
+  border-radius: 4px;
+  background: rgba(16, 35, 25, 0.5);
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+}
+
+input[type="checkbox"]:checked {
+  background: #2f6047;
+  border-color: #2f6047;
+}
+
+input[type="checkbox"]:checked::after {
+  content: "✓";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+/* Skeleton */
+.skeleton {
+  background-color: rgba(255,255,255,0.05);
+  border-radius: var(--radius);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Адаптивная сетка */
+@media (max-width: 640px) {
+  .card, .card-tight {
+    padding: 1rem;
+  }
+  
+  .h1 {
+    font-size: 1.5rem;
+  }
+}
+
+/* Скрытие overflow для предотвращения горизонтального скролла */
+#__next, main {
+  overflow-x: hidden;
+  width: 100%;
+}
+
+/* Кастомный скроллбар */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(16, 35, 25, 0.3);
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(47, 96, 71, 0.5);
+  border-radius: 3px;
+  transition: background 0.2s;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(47, 96, 71, 0.7);
+}
+
+/* Для Firefox */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(47, 96, 71, 0.5) rgba(16, 35, 25, 0.3);
+}
+
+/* Заголовки карточек */
+.card-title {
+  font-size: 0.75rem; /* 12px */
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.7;
+  font-weight: 600;
+}
+
+/* Легенды */
+.legend-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.25rem;
+}
+
+/* Чипы в деталке */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+  background-color: rgba(255,255,255,0.05);
+  font-size: 0.75rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  transition: background-color 0.2s ease;
+}
+/* --- KPI: размеры/типографика уже есть в файле,
+   просто немного усилим центрирование числа --- */
+.kpi { display:flex; flex-direction:column; justify-content:center; }
+.kpi-number { margin-bottom: 8px; }
+
+/* --- Donut layout: круг слева, легенда справа --- */
+.donut-layout{
+  display:grid;
+  grid-template-columns: 240px 1fr; /* круг ~200–220 + легенда */
+  align-items:center;
+  gap: 16px;
+  min-height: 320px; /* фикс-высота блока */
+}
+@media (max-width: 640px){
+  .donut-layout{ grid-template-columns: 1fr; }
+}
+.donut-ring{
+  position:relative;
+  width: 220px; height: 220px;
+  margin: 0 auto;
+}
+.donut-center{
+  position:absolute; inset:0;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+}
+/* === Карточки/сетку трогать нельзя? Тогда только утилиты под новые классы === */
+
+/* Карточка графика фикс-высоты и ровных паддингов */
+.card-graph { min-height: 320px; }
+
+/* Ряды графиков: по 2 карточки на ≥1280px */
+.charts-row { display: grid; gap: 16px; }
+@media (min-width: 1280px){ .charts-row { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+
+/* Заголовок карточки (маленький, приборный стиль) */
+.card-head { display:flex; align-items:center; justify-content:space-between; margin-bottom: 8px; }
+.card-title { font-size:12px; letter-spacing:.06em; text-transform:uppercase; color: var(--color-ink-500); }
+
+/* KPI-тайл: компактный центрированный блок */
+.card-tight { padding: 16px 20px; }
+.kpi { position:relative; display:flex; flex-direction:column; justify-content:center; height:116px; }
+.kpi-number { font-family: "JetBrains Mono", ui-monospace, monospace; font-weight:700; }
+.kpi-label { font-size:12px; text-transform:uppercase; opacity:.7; color: var(--color-ink-500); }
+
+/* Лёгкие анимации цифр/легенды (ненавязчиво) */
+@keyframes scaleIn { from { transform:scale(.98); opacity:.6; } to { transform:scale(1); opacity:1; } }
+.scale-in { animation: scaleIn 160ms ease-out both; }
+.num { letter-spacing:.02em; }
+
+/* Легенда справа от доната — 2 колонки */
+.legend-grid {
+  display:grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 6px 12px;
+}
+
+/* Лоадеры для списков */
+.skeleton {
+  background: rgba(255,255,255,.08);
+  border-radius: 6px;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:.5} 50%{opacity:.9} }
+
+/* Высота графика 340 как просили */
+.chart-340 { min-height: 340px; }
+.filter-card{
+  padding: 12px 16px;       /* компактная «рамка» */
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 12px;
+  background: rgba(255,255,255,.03);
+}
